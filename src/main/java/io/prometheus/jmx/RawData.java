@@ -10,6 +10,7 @@ import java.util.Map;
 @SuppressWarnings("unchecked")
 class RawData
 {
+
     private static void addCpuGovernors(JSONObject cpuObject, ContainerAgent containerAgent)
     {
         String [] governors = containerAgent.metricCollector.cpuMetricsImpl.getCpuGovernors();

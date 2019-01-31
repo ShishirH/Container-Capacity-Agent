@@ -12,7 +12,7 @@ class ConstPatterns
 
 class Constants
 {
-    final static int MAX_NUMBER_OF_VALUES = 600; //Maximum number of samples to be calculated.
+    final static int MAX_NUMBER_OF_VALUES = 10; //Maximum number of samples to be calculated.
     final static int NO_OF_CORES = Runtime.getRuntime().availableProcessors(); //No of cores in the system
     final static String PROC_CPU_INFO = "/proc/cpuinfo";
     final static String URL = "http://localhost:9999";
