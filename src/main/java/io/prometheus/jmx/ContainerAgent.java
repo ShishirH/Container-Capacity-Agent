@@ -31,6 +31,24 @@ class ContainerAgent extends Thread
 
     private ContainerAgent()
     {
+/*        Runtime.getRuntime().addShutdownHook(new Thread()
+        {
+            public void run()
+            {
+                System.out.println("Shutdown Hook is running !");
+                try
+                {
+                    TimeUnit.SECONDS.sleep(5);
+                }
+                catch (InterruptedException e)
+                {
+                    e.printStackTrace();
+                }
+                System.out.println("Hello, There!");
+            }
+        });
+        System.out.println("Application Terminating ...");*/
+
         metricCollector = new MetricCollector();
         monitorObject = new JSONObject();
         analysisObject = new JSONObject();
@@ -118,6 +136,7 @@ class ContainerAgent extends Thread
         printToFile("./configuration.yml", containerAgent.comments + yamlMapping.toString());
 
         createGraphs(containerAgent);
+        System.exit(1);
     }
 
     private static void printToFile(String fileName, String content)
