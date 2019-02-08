@@ -1,7 +1,11 @@
-package io.prometheus.jmx;
+package com.ibm.cloudtools.agent;
 
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import oshi.SystemInfo;
+import oshi.hardware.CentralProcessor;
+import oshi.hardware.HardwareAbstractionLayer;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -13,7 +17,7 @@ class RawData
 
     private static void addCpuGovernors(JSONObject cpuObject, ContainerAgent containerAgent)
     {
-        String [] governors = containerAgent.metricCollector.cpuMetricsImpl.getCpuGovernors();
+        String [] governors = containerAgent.metricCollector.cpuGovernors;
         int index = 0;
         Map<String, String> cpuMap = new HashMap<>();
         for(String governor : governors)
@@ -37,11 +41,11 @@ class RawData
     private static void addCpuCurrentFrequency(JSONObject cpuObject, ContainerAgent containerAgent)
     {
         int index = 0;
-        double [][] cpuFrequencies = containerAgent.metricCollector.cpuMetricsImpl.getCpuCurrentFrequency();
+        DescriptiveStatistics[] cpuFrequencies = containerAgent.metricCollector.cpuMetricsImpl.getFreqStat();
         Map<String, String> cpuMap = new HashMap<>();
-        for(double[] frequency : cpuFrequencies)
+        for(DescriptiveStatistics frequency : cpuFrequencies)
         {
-            cpuMap.put("CPU" + index, Arrays.toString(frequency));
+            cpuMap.put("CPU" + index, Arrays.toString(frequency.getValues()));
             index++;
         }
 
@@ -51,56 +55,55 @@ class RawData
     //adds Hyperthreading information by reading /proc/cpuinfo
     private static void addCpuHyperthreading(JSONObject cpuObject, ContainerAgent containerAgent)
     {
-        int [] hyperthreading = containerAgent.metricCollector.cpuMetricsImpl.getHyperthreadingInfo();
-        int index = 0;
+        int hyperthreading = containerAgent.metricCollector.hyperThreadingInfo;
+        int index;
         Map<String, String> cpuMap = new HashMap<>();
-        for(int threading : hyperthreading)
+        for(index = 0; index < Constants.NO_OF_CORES; index++)
         {
-            cpuMap.put("CPU" + index, Integer.toString(threading));
-            index++;
+            cpuMap.put("CPU" + index, Integer.toString(hyperthreading));
         }
 
         cpuObject.put("Hyperthreading", cpuMap);
     }
 
     //apply statistical methods to memory data
-    static void addMemoryToMonitor(JSONObject monitorObject, ContainerAgent containerAgent)
+    static void addMemoryToMonitor(JSONObject monitorObject, ContainerAgent containerAgent, MetricCollector metricCollector)
     {
         int outIndex = 0;
-        double [][][] heapTypes = containerAgent.metricCollector.getHeapTypes();
-        double [][] heapMem = containerAgent.metricCollector.getHeapMemory();
-        double [][] nativeMem = containerAgent.metricCollector.getNativeMemory();
+        DescriptiveStatistics[][] heapTypes = containerAgent.metricCollector.getMemDivisions();
+        DescriptiveStatistics [] heapStat = containerAgent.metricCollector.getHeapStat();
+        DescriptiveStatistics [] nativeStat = containerAgent.metricCollector.getNativeStat();
 
         Map<String, String> heapMap = new HashMap<>();
         Map<String, String> nativeMap = new HashMap<>();
 
-        for(double [] memType : heapMem)
+        for(DescriptiveStatistics heapMem : heapStat)
         {
-            heapMap.put(Constants.MEM_TYPES[outIndex], Arrays.toString(memType));
+            heapMap.put(Constants.MEM_TYPES[outIndex], Arrays.toString(heapMem.getValues()));
             outIndex++;
         }
 
 
         outIndex = 0;
-        for(double [] memType : nativeMem) {
-            nativeMap.put(Constants.MEM_TYPES[outIndex], Arrays.toString(memType));
+        for(DescriptiveStatistics nativeMem : nativeStat) {
+            nativeMap.put(Constants.MEM_TYPES[outIndex], Arrays.toString(nativeMem.getValues()));
             outIndex++;
         }
 
         JSONObject heaps = new JSONObject();
         outIndex = 0;
-        for(double[][] typeOfMemory : heapTypes)
+        for(DescriptiveStatistics[] typeOfMemory : heapTypes)
         {
             String memory = Constants.MEM_TYPES[outIndex];
             JSONArray usageArray = new JSONArray();
             outIndex++;
             int index = 0;
-            for(double[] typeOfHeap : typeOfMemory)
+            for(DescriptiveStatistics area : typeOfMemory)
             {
-                String type = Constants.HEAP_TYPES[index];
+                String type = metricCollector.memDivisionNames[index];
                 index++;
                 Map<String, String> mymap = new HashMap<>();
-                mymap.put(type, Arrays.toString(typeOfHeap));
+                mymap.put(type, Arrays.toString(area.getValues()));
                 usageArray.add(mymap);
             }
             heaps.put(memory, usageArray);
@@ -129,21 +132,29 @@ class RawData
         addCpuGovernors(cpuJsonObject, containerAgent);
         addCpuHyperthreading(cpuJsonObject, containerAgent);
         addCpuLoad(cpuJsonObject, containerAgent);
-        addCpuModels(cpuJsonObject, containerAgent);
+        addCpuModels(cpuJsonObject);
         monitorObject.put("CPU", cpuJsonObject);
     }
 
     //adds CPU Models
-    private static void addCpuModels(JSONObject cpuObject, ContainerAgent containerAgent)
+    private static void addCpuModels(JSONObject cpuObject)
     {
-        String [] models = containerAgent.metricCollector.cpuMetricsImpl.getCpuModels();
+        SystemInfo systemInfo = new SystemInfo();
+        HardwareAbstractionLayer hardwareAbstractionLayer = systemInfo.getHardware();
 
+        CentralProcessor centralProcessor = hardwareAbstractionLayer.getProcessor();
         Map<String, String> cpuMap = new HashMap<>();
-        int index = 0;
-        for(String model : models)
+        int index;
+        for(index = 0; index < Constants.NO_OF_CORES; index++)
         {
-            cpuMap.put("CPU" + index, model.substring(13));
-            index++;
+            try
+            {
+                cpuMap.put("CPU" + index, centralProcessor.toString());
+            }
+
+            catch (Exception e) {
+                return;
+            }
         }
         cpuObject.put("Models", cpuMap);
     }

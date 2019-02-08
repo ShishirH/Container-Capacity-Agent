@@ -1,12 +1,12 @@
-package io.prometheus.jmx;
+package com.ibm.cloudtools.agent;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 public interface CpuMetrics
 {
-    int[] getHyperthreadingInfo();
+    int getHyperthreadingInfo();
     String[] getCpuGovernors();
-    double[][] getCpuCurrentFrequency();
-    String[] getCpuModels();
+    void getCpuCurrentFrequency();
+    String getCpuModels();
     DescriptiveStatistics getCpuLoad();
 }
