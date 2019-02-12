@@ -13,8 +13,10 @@ import java.util.Map;
 class DetectVM
 {
 
-    // Constant for Mac address OUI portion, the first 24 bits of MAC address
-    // https://www.webopedia.com/TERM/O/OUI.html
+    /*
+    Constant for Mac address OUI portion, the first 24 bits of MAC address
+    https://www.webopedia.com/TERM/O/OUI.html
+    */
     private static final Map<String, String> vmMacAddressOUI = new HashMap<>();
     static
     {
@@ -37,39 +39,46 @@ class DetectVM
      * The function attempts to identify which Virtual Machine (VM) based on
      * common VM signatures in MAC address and computer model.
      *
-     * @return A string indicating the machine's virtualization info if it can
-     *         be determined, or an emptry string otherwise.
+     * @return A boolean indicating whether it is running on a VM.
      */
+
     static boolean identifyVM()
     {
-        SystemInfo si = new SystemInfo();
-        HardwareAbstractionLayer hw = si.getHardware();
+        SystemInfo systemInfo = new SystemInfo();
+        HardwareAbstractionLayer hardwareAbstractionLayer = systemInfo.getHardware();
 
-        // Try well known MAC addresses
-        NetworkIF[] nifs = hw.getNetworkIFs();
+        /* Try well known MAC addresses */
+        NetworkIF[] nifs = hardwareAbstractionLayer.getNetworkIFs();
 
         for (NetworkIF nif : nifs) {
             String mac = nif.getMacaddr().substring(0, 8).toUpperCase();
-            if (vmMacAddressOUI.containsKey(mac)) {
+            if (vmMacAddressOUI.containsKey(mac))
+            {
+                if(nif.getName().equals("virbr0") || nif.getName().equals("virbr1"))
+                {
+                    continue;
+                }
                 System.err.println(vmMacAddressOUI.get(mac));
                 return true;
             }
         }
 
-        // Try well known models
-        String model = hw.getComputerSystem().getModel();
-        for (String vm : vmModelArray) {
-            if (model.contains(vm)) {
+        /* Try well known models */
+        String model = hardwareAbstractionLayer.getComputerSystem().getModel();
+        for (String vm : vmModelArray)
+        {
+            if (model.contains(vm))
+            {
                 System.err.println("RUNNING ON VM: " + vm);
                 return true;
             }
         }
-        String manufacturer = hw.getComputerSystem().getManufacturer();
+        String manufacturer = hardwareAbstractionLayer.getComputerSystem().getManufacturer();
         if ("Microsoft Corporation".equals(manufacturer) && "Virtual Machine".equals(model)) {
             System.err.println("RUNNING ON VM: Microsoft Hyper-V");
         }
 
-        // Couldn't find VM, return empty string
+        /* Couldn't find VM, return empty string */
         return false;
     }
 }

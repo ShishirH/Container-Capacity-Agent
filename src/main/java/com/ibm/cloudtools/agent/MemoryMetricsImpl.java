@@ -55,8 +55,6 @@ class MemoryMetricsImpl
         ExtendedOperatingSystemMXBeanImpl extendedOperatingSystemMXBean =  ExtendedOperatingSystemMXBeanImpl.getInstance();
         extendedOperatingSystemMXBean.getProcessCpuLoad();
 
-        metricCollector.totalMemory = extendedOperatingSystemMXBean.getTotalPhysicalMemorySize();
-
         memoryMXBean = MemoryMXBeanImpl.getInstance();
         memoryPoolMXBeans = memoryMXBean.getMemoryPoolMXBeans(false);
 
@@ -92,7 +90,6 @@ class MemoryMetricsImpl
                 MetricCollector.maxCpuLoad = cpuLoad;
             }
 
-            metricCollector.cpuMetricsImpl.cpuSecondsStat.addValue(extendedOperatingSystemMXBean.getProcessCpuTime());
             getDivision(metricCollector, memoryPoolMXBeans);
             getHeapAndNative(metricCollector, i, memoryMXBean);
 
@@ -100,12 +97,17 @@ class MemoryMetricsImpl
             metricCollector.residentMemoryStat.addValue(processPhysicalMemorySize);
             MetricCollector.residentSumValues += processPhysicalMemorySize / 1000000.0;
 
+            if(MetricCollector.maxResidentOverIterations < (processPhysicalMemorySize / 1000000.0))
+            {
+                MetricCollector.maxResidentOverIterations = (processPhysicalMemorySize / 1000000.0);
+            }
+
             metricCollector.cpuMetricsImpl.getCpuCurrentFrequency();
 
             try
             {
                 metricCollector.time[i] = i * Constants.TIME_TO_SLEEP;
-                   TimeUnit.SECONDS.sleep(Constants.TIME_TO_SLEEP);
+                TimeUnit.SECONDS.sleep(Constants.TIME_TO_SLEEP);
             }
 
             catch (InterruptedException e)

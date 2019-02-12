@@ -42,15 +42,17 @@ class MetricCollector
     DescriptiveStatistics [] heapStat = new DescriptiveStatistics[memTypesLength];
     DescriptiveStatistics [] nativeStat = new DescriptiveStatistics[memTypesLength];
 
+    static DescriptiveStatistics chartCpuLoadStat = new DescriptiveStatistics();
+    static DescriptiveStatistics chartResidentStat = new DescriptiveStatistics();
+
     double maxHeapSize = -1;
     double meanHeapSize = -1;
     double maxNativeSize = -1;
     double meanNativeSize = -1;
-    double totalMemory = -1;
 
-    double maxHeapOverIterations = 0;
-    double maxNativeOverIterations = 0;
-    double maxResidentOverIterations = 0;
+    static double maxHeapOverIterations = 0;
+    static double maxNativeOverIterations = 0;
+    static double maxResidentOverIterations = 0;
 
     MetricCollector()
     {

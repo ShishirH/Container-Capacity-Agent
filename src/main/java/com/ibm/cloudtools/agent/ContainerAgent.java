@@ -2,7 +2,6 @@ package com.ibm.cloudtools.agent;
 
 import com.amihaiemil.eoyaml.YamlMapping;
 import com.cedarsoftware.util.io.JsonWriter;
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.knowm.xchart.BitmapEncoder;
@@ -13,25 +12,27 @@ import java.io.*;
 import java.lang.instrument.Instrumentation;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
 
 @SuppressWarnings("InfiniteLoopStatement unchecked")
 class ContainerAgent extends Thread
 {
-    double targetMultiplier;
+    static double targetMultiplier;
     static long buffer;
-    int config;
+    static int config;
+    static int governorPowersaveFlag = 0;
+
     double maxMemSize;
     double meanMemSize;
     MetricCollector metricCollector;
+
     private JSONObject monitorObject;
     private JSONObject analysisObject;
-    String comments;
+    private JSONObject summaryObject;
+
+    static String comments;
     static int NO_OF_VALUES_CURRENT = 0;
     static int NO_OF_ITERATIONS = 0;
-
-    private JSONObject summaryObject;
-    int governorPowersaveFlag = 0;
-
 
     private ContainerAgent()
     {
@@ -72,21 +73,27 @@ class ContainerAgent extends Thread
         {
             JSONObject inputObject = (JSONObject) new JSONParser().parse(new FileReader(args));
             final ContainerAgent containerAgent = new ContainerAgent();
-            containerAgent.targetMultiplier = (Double) inputObject.get("targetMultiplier");
             final String configuration = (String) inputObject.get("config");
-            ContainerAgent.buffer = (Long) inputObject.get("buffer");
-            containerAgent.config = (configuration.equals("perf")) ? 1 : 0;
+
+            ContainerAgent.targetMultiplier = (Double) inputObject.get("targetMultiplier");
+            ContainerAgent.buffer = (configuration.equals("perf")) ? 20 : 15;
+            ContainerAgent.config = (configuration.equals("perf")) ? 1 : 0;
 
             containerAgent.setDaemon(true);
-            Runtime.getRuntime().addShutdownHook(new Thread()
+            Runtime.getRuntime().addShutdownHook(new Thread(() ->
             {
-                public void run()
+                if(NO_OF_VALUES_CURRENT == 0 && NO_OF_ITERATIONS == 0)
                 {
-                    exportDetails(containerAgent, false);
-                    System.out.println("Current number of values: " + ContainerAgent.NO_OF_VALUES_CURRENT);
-                    generateYamlFile(containerAgent);
+                    return;
                 }
-            });
+
+                generateYamlFile();
+                if(NO_OF_VALUES_CURRENT > 0)
+                {
+                    exportDetails(containerAgent);
+                }
+                createGraphs();
+            }));
             containerAgent.start();
         }
 
@@ -120,13 +127,13 @@ class ContainerAgent extends Thread
 
             containerAgent.metricCollector = new MetricCollector();
             containerAgent.metricCollector.memoryMetrics.getMemoryMetrics(containerAgent.metricCollector);
-            exportDetails(containerAgent ,true);
+            exportDetails(containerAgent);
             ContainerAgent.NO_OF_VALUES_CURRENT = 0;
             ContainerAgent.NO_OF_ITERATIONS++;
         }
     }
 
-    private static void exportDetails(ContainerAgent containerAgent, boolean needGraph)
+    private static void exportDetails(ContainerAgent containerAgent)
     {
         /* creating RawData.json that contains raw data */
         createRawJSON(containerAgent);
@@ -140,11 +147,6 @@ class ContainerAgent extends Thread
         createSummaryJSON(containerAgent);
         printToFile(separatorsToSystem("Output/JSONs/Summary") + NO_OF_ITERATIONS + ".json", JsonWriter.formatJson(containerAgent.summaryObject.toJSONString()));
 
-        //graphs will not be created when application exits
-        if(needGraph)
-        {
-            createGraphs(containerAgent);
-        }
         System.out.println("EXPORTED DETAILS: " + ContainerAgent.NO_OF_ITERATIONS);
         /* removing existing contents */
         containerAgent.monitorObject = new JSONObject();
@@ -152,11 +154,11 @@ class ContainerAgent extends Thread
         containerAgent.summaryObject = new JSONObject();
     }
 
-    private static void generateYamlFile(ContainerAgent containerAgent)
+    private static void generateYamlFile()
     {
         /* creating the YAML file */
-        YamlMapping yamlMapping = GenerateConfig.createYamlConfig(containerAgent);
-        printToFile(separatorsToSystem("Output/configuration.yml"), containerAgent.comments + yamlMapping.toString());
+        YamlMapping yamlMapping = GenerateConfig.createYamlConfig();
+        printToFile(separatorsToSystem("Output/configuration.yml"), ContainerAgent.comments + yamlMapping.toString());
     }
 
     private static void printToFile(String fileName, String content)
@@ -200,31 +202,60 @@ class ContainerAgent extends Thread
         RawData.addCpuToMonitor(containerAgent.monitorObject, containerAgent);
     }
 
-    private static void createGraphs(ContainerAgent containerAgent)
+    private static void createGraphs()
     {
-        double [] time = containerAgent.metricCollector.getTime();
-        DescriptiveStatistics [] cpuFrequency = containerAgent.metricCollector.cpuMetricsImpl.getFreqStat();
-        double [] cpuSeconds = containerAgent.metricCollector.cpuMetricsImpl.getCpuSecondsStat().getValues();
+        double [] time;
+        System.out.println("Number of values currently are: " + NO_OF_VALUES_CURRENT);
+
+
+        if(NO_OF_VALUES_CURRENT > 0)
+        {
+            time = new double[ContainerAgent.NO_OF_ITERATIONS + 1];
+        }
+
+        else
+        {
+            time = new double[ContainerAgent.NO_OF_ITERATIONS];
+        }
+
+        int i;
+        for(i = 0; i < time.length - 1; i++)
+        {
+            time[i] = Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES * i;
+        }
+
+        time[time.length - 1] = Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES * i + Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES;
+
+        System.err.println("NUMBER OF VALUES CURRENTLY: " + NO_OF_VALUES_CURRENT);
+        System.err.println("NUMBER OF ITERATIONS: " + NO_OF_ITERATIONS);
+
+        //DescriptiveStatistics [] cpuFrequency = containerAgent.metricCollector.cpuMetricsImpl.getFreqStat();
+
+        double [] cpuLoad =  Arrays.stream(MetricCollector.chartCpuLoadStat.getValues()).filter(x -> !Double.isNaN(x)).toArray();
+        double [] residentSize = Arrays.stream(MetricCollector.chartResidentStat.getValues()).filter(x -> !Double.isNaN(x)).toArray();
 
         /* initializing and labelling charts */
-        final XYChart timeSpentChart = new XYChartBuilder().width(1000).height(1000).title("Total user and system CPU time spent in seconds").xAxisTitle("Time").yAxisTitle("Seconds spend").build();
-        final XYChart cpuFrequencyChart = new XYChartBuilder().width(1000).height(1000).title("CPU Frequency").xAxisTitle("Time").yAxisTitle("Frequency").build();
+        //final XYChart cpuFrequencyChart = new XYChartBuilder().width(1000).height(1000).title("CPU Frequency").xAxisTitle("Time").yAxisTitle("Frequency").build();
         final XYChart cpuLoadChart = new XYChartBuilder().width(1000).height(1000).title("CPU Load").xAxisTitle("Time").yAxisTitle("Load").build();
+        final XYChart residentMemChart = new XYChartBuilder().width(1000).height(1000).title("Resident Memory")
+                .xAxisTitle("Time").yAxisTitle("Resident Memory").build();
 
-        timeSpentChart.addSeries("y(x)", time, cpuSeconds);
-        cpuLoadChart.addSeries("y(x)", time, containerAgent.metricCollector.cpuMetricsImpl.getCpuLoad().getValues());
+        cpuLoadChart.addSeries("y(x)", time, cpuLoad);
+        residentMemChart.addSeries("y(x)", time, residentSize);
 
+/*
         for(int j = 0; j < Constants.NO_OF_CORES; j++)
         {
             cpuFrequencyChart.addSeries("CPU" + j, time, cpuFrequency[j].getValues());
         }
+*/
 
         /* exporting chart to PNG. */
         try
         {
-            BitmapEncoder.saveBitmapWithDPI(timeSpentChart, separatorsToSystem("Output/Charts/timeSpentCPU") + NO_OF_ITERATIONS, BitmapEncoder.BitmapFormat.PNG, 300);
-            BitmapEncoder.saveBitmapWithDPI(cpuFrequencyChart, separatorsToSystem("Output/Charts/cpuFrequency") + NO_OF_ITERATIONS, BitmapEncoder.BitmapFormat.PNG, 300);
-            BitmapEncoder.saveBitmapWithDPI(cpuLoadChart, separatorsToSystem("Output/Charts/cpuLoad") + NO_OF_ITERATIONS, BitmapEncoder.BitmapFormat.PNG, 300);
+            //BitmapEncoder.saveBitmapWithDPI(cpuFrequencyChart, separatorsToSystem("Output/Charts/cpuFrequency") + NO_OF_ITERATIONS, BitmapEncoder.BitmapFormat.PNG, 300);
+            BitmapEncoder.saveBitmapWithDPI(residentMemChart, separatorsToSystem("Output/Charts/residentMemory"), BitmapEncoder.BitmapFormat.PNG, 300);
+            BitmapEncoder.saveBitmapWithDPI(cpuLoadChart, separatorsToSystem("Output/Charts/cpuLoad"), BitmapEncoder.BitmapFormat.PNG, 300);
         }
 
         catch (IOException e)

@@ -11,7 +11,7 @@ import java.io.RandomAccessFile;
 class CpuMetricsImpl implements CpuMetrics
 {
     DescriptiveStatistics loadStat;
-    DescriptiveStatistics cpuSecondsStat;
+    static DescriptiveStatistics cpuSecondsStat = new DescriptiveStatistics();
     private DescriptiveStatistics [] freqStat;
 
     CpuMetricsImpl()
@@ -23,17 +23,11 @@ class CpuMetricsImpl implements CpuMetrics
         {
             freqStat[i] = new DescriptiveStatistics();
         }
-        cpuSecondsStat = new DescriptiveStatistics();
     }
 
     DescriptiveStatistics[] getFreqStat()
     {
         return freqStat;
-    }
-
-    DescriptiveStatistics getCpuSecondsStat()
-    {
-        return cpuSecondsStat;
     }
 
     /* checking hyperthreading. grep -E "cpu cores|siblings|physical id" /proc/cpuinfo. If siblings = 2 * cpu cores, then hyperthreading is enabled for that cpu */

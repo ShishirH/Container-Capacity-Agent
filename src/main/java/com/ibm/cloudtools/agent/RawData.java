@@ -24,9 +24,9 @@ class RawData
         {
             cpuMap.put("CPU" + index, governor);
             index++;
-            if(governor.equals("powersave") && containerAgent.governorPowersaveFlag == 0)
+            if(governor.equals("powersave") && ContainerAgent.governorPowersaveFlag == 0)
             {
-                containerAgent.governorPowersaveFlag = 1;
+                ContainerAgent.governorPowersaveFlag = 1;
             }
         }
         cpuObject.put("Governors", cpuMap);
@@ -70,9 +70,10 @@ class RawData
     static void addMemoryToMonitor(JSONObject monitorObject, ContainerAgent containerAgent, MetricCollector metricCollector)
     {
         int outIndex = 0;
-        DescriptiveStatistics[][] heapTypes = containerAgent.metricCollector.getMemDivisions();
-        DescriptiveStatistics [] heapStat = containerAgent.metricCollector.getHeapStat();
-        DescriptiveStatistics [] nativeStat = containerAgent.metricCollector.getNativeStat();
+
+        DescriptiveStatistics[][] heapTypes = metricCollector.getMemDivisions();
+        DescriptiveStatistics [] heapStat = metricCollector.getHeapStat();
+        DescriptiveStatistics [] nativeStat = metricCollector.getNativeStat();
 
         Map<String, String> heapMap = new HashMap<>();
         Map<String, String> nativeMap = new HashMap<>();
@@ -83,9 +84,9 @@ class RawData
             outIndex++;
         }
 
-
         outIndex = 0;
-        for(DescriptiveStatistics nativeMem : nativeStat) {
+        for(DescriptiveStatistics nativeMem : nativeStat)
+        {
             nativeMap.put(Constants.MEM_TYPES[outIndex], Arrays.toString(nativeMem.getValues()));
             outIndex++;
         }
@@ -100,11 +101,20 @@ class RawData
             int index = 0;
             for(DescriptiveStatistics area : typeOfMemory)
             {
-                String type = metricCollector.memDivisionNames[index];
-                index++;
-                Map<String, String> mymap = new HashMap<>();
-                mymap.put(type, Arrays.toString(area.getValues()));
-                usageArray.add(mymap);
+                try
+                {
+                    String type = metricCollector.memDivisionNames[index];
+                    index++;
+                    Map<String, String> mymap = new HashMap<>();
+                    mymap.put(type, Arrays.toString(area.getValues()));
+                    usageArray.add(mymap);
+                }
+
+                catch(Exception e)
+                {
+                    if(area == null)
+                        System.out.println("Area is null");
+                }
             }
             heaps.put(memory, usageArray);
         }
@@ -121,8 +131,6 @@ class RawData
         jsonObject.put("Native", nativeObject);
         jsonObject.put("ResidentMemory", Arrays.toString(containerAgent.metricCollector.getResidentMemoryStat().getValues()));
         monitorObject.put("Memory", jsonObject);
-
-
     }
 
     static void addCpuToMonitor(JSONObject monitorObject, ContainerAgent containerAgent)

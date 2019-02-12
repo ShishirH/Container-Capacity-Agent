@@ -1,5 +1,6 @@
 package com.ibm.cloudtools.agent;
 
+import com.ibm.lang.management.internal.ExtendedOperatingSystemMXBeanImpl;
 import org.json.simple.JSONObject;
 
 import java.util.HashMap;
@@ -47,9 +48,9 @@ class Analysis
 
         MetricCollector.heapSumValues += metricCollector.meanHeapSize;
 
-        if(metricCollector.maxHeapOverIterations < metricCollector.maxHeapSize)
+        if(MetricCollector.maxHeapOverIterations < metricCollector.maxHeapSize)
         {
-            metricCollector.maxHeapOverIterations = metricCollector.maxHeapSize;
+            MetricCollector.maxHeapOverIterations = metricCollector.maxHeapSize;
         }
 
         for (index = 0; index < Constants.MEM_TYPE_LENGTH; index++)
@@ -84,9 +85,9 @@ class Analysis
 
         MetricCollector.nativeSumValues += metricCollector.meanNativeSize;
 
-        if(metricCollector.maxNativeOverIterations < metricCollector.maxNativeSize)
+        if(MetricCollector.maxNativeOverIterations < metricCollector.maxNativeSize)
         {
-            metricCollector.maxNativeOverIterations = metricCollector.maxNativeSize;
+            MetricCollector.maxNativeOverIterations = metricCollector.maxNativeSize;
         }
 
 
@@ -98,11 +99,7 @@ class Analysis
         residentMap.put("StandardDeviation", Double.toString(metricCollector.getResidentMemoryStat().getStandardDeviation()/ 1000000.0 ));
         residentMap.put("Variance", Double.toString(metricCollector.getResidentMemoryStat().getVariance()));
 
-
-        if(metricCollector.maxResidentOverIterations < (metricCollector.getResidentMemoryStat().getMax() / 1000000.0))
-        {
-            metricCollector.maxResidentOverIterations = (metricCollector.getResidentMemoryStat().getMax() / 1000000.0);
-        }
+        MetricCollector.chartResidentStat.addValue(metricCollector.getResidentMemoryStat().getPercentile(50) / 1000000.0);
 
         memoryAnalysisObject.put("Heap", heapObject);
         memoryAnalysisObject.put("Native", nativeObject);
@@ -114,6 +111,7 @@ class Analysis
     {
         int hyperthreading = metricCollector.hyperThreadingInfo;
         String [] governors = metricCollector.cpuGovernors;
+        ExtendedOperatingSystemMXBeanImpl extendedOperatingSystemMXBean =  ExtendedOperatingSystemMXBeanImpl.getInstance();
 
         String model = metricCollector.cpuModel;
 
@@ -130,6 +128,7 @@ class Analysis
             coreObject.put("Governor", governors[i]);
             coreObject.put("Model", model);
             cpuAnalysisObject.put("CPU" + i, coreObject);
+
         }
 
         JSONObject load = new JSONObject();
@@ -140,5 +139,9 @@ class Analysis
         load.put("StandardDeviation", metricCollector.cpuMetricsImpl.getCpuLoad().getStandardDeviation());
         load.put("Variance", metricCollector.cpuMetricsImpl.getCpuLoad().getVariance());
         cpuAnalysisObject.put("CpuLoad", load);
+
+        MetricCollector.chartCpuLoadStat.addValue(metricCollector.cpuMetricsImpl.getCpuLoad().getPercentile(50));
+        CpuMetricsImpl.cpuSecondsStat.addValue(extendedOperatingSystemMXBean.getProcessCpuTime());
+
     }
 }

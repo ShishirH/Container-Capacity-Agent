@@ -100,10 +100,14 @@ class SystemDump
 
     private static void printMemory(GlobalMemory memory, Logger LOG)
     {
-        LOG.info(String.format("%nMemory Available: " + FormatUtil.formatBytes(memory.getAvailable()) + "/"
-                + FormatUtil.formatBytes(memory.getTotal())));
-        LOG.info(String.format("%nSwap used: " + FormatUtil.formatBytes(memory.getSwapUsed()) + "/"
-                + FormatUtil.formatBytes(memory.getSwapTotal())));
+        LOG.info("Memory Available: " + FormatUtil.formatBytes(memory.getAvailable()) + "/"
+                + FormatUtil.formatBytes(memory.getTotal()));
+        LOG.info("Swap used: " + FormatUtil.formatBytes(memory.getSwapUsed()) + "/"
+                + FormatUtil.formatBytes(memory.getSwapTotal()));
+        if(memory.getSwapUsed() > 0)
+        {
+            ContainerAgent.comments += "#WARNING: SWAP MEMORY IS USED!";
+        }
         LOG.info("\n");
         LOG.info("\n");
         LOG.info("\n");
