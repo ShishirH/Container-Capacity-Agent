@@ -15,53 +15,55 @@ import java.util.List;
 
 class SystemDump
 {
+    private static SystemInfo systemInfo = new SystemInfo();
+    static HardwareAbstractionLayer hardwareAbstractionLayer = systemInfo.getHardware();
+    private static OperatingSystem operatingSystem = systemInfo.getOperatingSystem();
+
     static void printSystemLog()
     {
         System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "INFO");
         System.setProperty(org.slf4j.impl.SimpleLogger.LOG_FILE_KEY, "System.err");
         Logger LOG = LoggerFactory.getLogger(ContainerAgent.class);
 
-        SystemInfo systemInfo = new SystemInfo();
-        HardwareAbstractionLayer hardwareAbstractionLayer = systemInfo.getHardware();
-        OperatingSystem operatingSystem = systemInfo.getOperatingSystem();
 
-        LOG.info("Checking computer system...");
+        LOG.info("Computer System:");
         printComputerSystem(hardwareAbstractionLayer.getComputerSystem(), LOG);
 
-        LOG.info("Checking Processor...");
+        LOG.info("Processor:");
         printProcessor(hardwareAbstractionLayer.getProcessor(), LOG);
 
-        LOG.info("Checking Memory...");
+        LOG.info("Memory:");
         printMemory(hardwareAbstractionLayer.getMemory(), LOG);
 
-        LOG.info("Checking CPU...");
+        LOG.info("CPU");
         printCpu(hardwareAbstractionLayer.getProcessor(), LOG);
 
-        LOG.info("Checking Processes...");
+        LOG.info("Processes:");
         printProcesses(operatingSystem, hardwareAbstractionLayer.getMemory(), LOG);
 
-        LOG.info("Checking Disks...");
+        LOG.info("Disks:");
         printDisks(hardwareAbstractionLayer.getDiskStores(), LOG);
 
-        LOG.info("Checking File System...");
+        LOG.info("File System:");
         printFileSystem(operatingSystem.getFileSystem(), LOG);
 
-        LOG.info("Checking Network interfaces...");
+        LOG.info("Network interfaces:");
         printNetworkInterfaces(hardwareAbstractionLayer.getNetworkIFs(), LOG);
 
-        LOG.info("Checking Network parameterss...");
+        LOG.info("Network parameters:");
         printNetworkParameters(operatingSystem.getNetworkParams(), LOG);
 
         // hardware: displays
-        LOG.info("Checking Displays...");
+        LOG.info("Displays:");
         printDisplays(hardwareAbstractionLayer.getDisplays(), LOG);
 
         // hardware: USB devices
-        LOG.info("Checking USB Devices...");
+        LOG.info("USB Devices:");
         printUsbDevices(hardwareAbstractionLayer.getUsbDevices(true), LOG);
     }
 
-    private static void printComputerSystem(final ComputerSystem computerSystem, Logger LOG) {
+    private static void printComputerSystem(final ComputerSystem computerSystem, Logger LOG)
+    {
 
         LOG.info("manufacturer: " + computerSystem.getManufacturer());
         LOG.info("model: " + computerSystem.getModel());
@@ -104,7 +106,7 @@ class SystemDump
                 + FormatUtil.formatBytes(memory.getTotal()));
         LOG.info("Swap used: " + FormatUtil.formatBytes(memory.getSwapUsed()) + "/"
                 + FormatUtil.formatBytes(memory.getSwapTotal()));
-        if(memory.getSwapUsed() > 0)
+        if (memory.getSwapUsed() > 0)
         {
             ContainerAgent.comments += "#WARNING: SWAP MEMORY IS USED!";
         }
@@ -148,19 +150,23 @@ class SystemDump
     private static void printDisks(HWDiskStore[] diskStores, Logger LOG)
     {
         LOG.info(String.format("Disks:%n"));
-        for (HWDiskStore disk : diskStores) {
+        for (HWDiskStore disk : diskStores)
+        {
             boolean readwrite = disk.getReads() > 0 || disk.getWrites() > 0;
-            LOG.info(String.format(" %s: (model: %s - S/N: %s) size: %s, reads: %s (%s), writes: %s (%s), xfer: %s ms%n",
+            LOG.info(String.format(" %s: (model: %s - S/N: %s) size: %s, reads: %s (%s), writes: %s (%s), xfer: %s " +
+                            "ms%n",
                     disk.getName(), disk.getModel(), disk.getSerial(),
                     disk.getSize() > 0 ? FormatUtil.formatBytesDecimal(disk.getSize()) : "?",
                     readwrite ? disk.getReads() : "?", readwrite ? FormatUtil.formatBytes(disk.getReadBytes()) : "?",
                     readwrite ? disk.getWrites() : "?", readwrite ? FormatUtil.formatBytes(disk.getWriteBytes()) : "?",
                     readwrite ? disk.getTransferTime() : "?"));
             HWPartition[] partitions = disk.getPartitions();
-            if (partitions == null) {
+            if (partitions == null)
+            {
                 continue;
             }
-            for (HWPartition part : partitions) {
+            for (HWPartition part : partitions)
+            {
                 LOG.info(String.format(" |-- %s: %s (%s) Maj:Min=%d:%d, size: %s%s%n", part.getIdentification(),
                         part.getName(), part.getType(), part.getMajor(), part.getMinor(),
                         FormatUtil.formatBytesDecimal(part.getSize()),
@@ -176,7 +182,8 @@ class SystemDump
                 fileSystem.getMaxFileDescriptors()));
 
         OSFileStore[] fsArray = fileSystem.getFileStores();
-        for (OSFileStore fs : fsArray) {
+        for (OSFileStore fs : fsArray)
+        {
             long usable = fs.getUsableSpace();
             long total = fs.getTotalSpace();
             LOG.info(String.format(
@@ -197,7 +204,8 @@ class SystemDump
         {
             LOG.info(String.format(" Name: %s (%s)%n", net.getName(), net.getDisplayName()));
             LOG.info(String.format("   MAC Address: %s %n", net.getMacaddr()));
-            LOG.info(String.format("   MTU: %s, Speed: %s %n", net.getMTU(), FormatUtil.formatValue(net.getSpeed(), "bps")));
+            LOG.info(String.format("   MTU: %s, Speed: %s %n", net.getMTU(), FormatUtil.formatValue(net.getSpeed(),
+                    "bps")));
             LOG.info(String.format("   IPv4: %s %n", Arrays.toString(net.getIPv4addr())));
             LOG.info(String.format("   IPv6: %s %n", Arrays.toString(net.getIPv6addr())));
             boolean hasData = net.getBytesRecv() > 0 || net.getBytesSent() > 0 || net.getPacketsRecv() > 0
@@ -226,7 +234,8 @@ class SystemDump
     {
         LOG.info("Displays:");
         int i = 0;
-        for (Display display : displays) {
+        for (Display display : displays)
+        {
             LOG.info(" Display " + i + ":");
             LOG.info(display.toString());
             i++;

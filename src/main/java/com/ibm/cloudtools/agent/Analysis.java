@@ -1,6 +1,7 @@
 package com.ibm.cloudtools.agent;
 
 import com.ibm.lang.management.internal.ExtendedOperatingSystemMXBeanImpl;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.simple.JSONObject;
 
 import java.util.HashMap;
@@ -9,139 +10,88 @@ import java.util.Map;
 @SuppressWarnings("unchecked")
 class Analysis
 {
-
     static void analyzeMemory(JSONObject memoryAnalysisObject, MetricCollector metricCollector)
     {
         JSONObject heapObject = new JSONObject();
         JSONObject nativeObject = new JSONObject();
         int index;
+
         for (index = 0; index < Constants.MEM_TYPE_LENGTH; index++)
         {
             Map<String, String> heapMap = new HashMap<>();
-            String type = Constants.MEM_TYPES[index];
-
-            double meanHeapSize = metricCollector.getHeapStat()[index].getMean() / 1000000.0;
-            double maxHeapSize = metricCollector.getHeapStat()[index].getMax() / 1000000.0;
-
-            heapMap.put("Max", Double.toString(maxHeapSize));
-            heapMap.put("Min", Double.toString(metricCollector.getHeapStat()[index].getMin() / 1000000.0));
-            heapMap.put("Median", Double.toString(metricCollector.getHeapStat()[index].getPercentile(50) / 1000000.0));
-            heapMap.put("Mean", Double.toString(meanHeapSize));
-            heapMap.put("StandardDeviation", Double.toString(metricCollector.getHeapStat()[index].getStandardDeviation() / 1000000.0));
-            heapMap.put("Variance", Double.toString(metricCollector.getHeapStat()[index].getVariance()));
-
-            /* not in Max */
-            if(index != 2)
-            {
-                if(metricCollector.maxHeapSize < maxHeapSize)
-                {
-                    metricCollector.maxHeapSize = maxHeapSize;
-                }
-
-                if(metricCollector.meanHeapSize < meanHeapSize)
-                {
-                    metricCollector.meanHeapSize = meanHeapSize;
-                }
-            }
-            heapObject.put(type, heapMap);
-        }
-
-        MetricCollector.heapSumValues += metricCollector.meanHeapSize;
-
-        if(MetricCollector.maxHeapOverIterations < metricCollector.maxHeapSize)
-        {
-            MetricCollector.maxHeapOverIterations = metricCollector.maxHeapSize;
-        }
-
-        for (index = 0; index < Constants.MEM_TYPE_LENGTH; index++)
-        {
             Map<String, String> nativeMap = new HashMap<>();
             String type = Constants.MEM_TYPES[index];
-            double meanNativeMem = metricCollector.getNativeStat()[index].getMean() / 1000000.0;
-            double maxNativeMem = metricCollector.getNativeStat()[index].getMax() / 1000000.0;
 
-            nativeMap.put("Max", Double.toString(maxNativeMem));
-            nativeMap.put("Min", Double.toString(metricCollector.getNativeStat()[index].getMin() / 1000000.0));
-            nativeMap.put("Median", Double.toString(metricCollector.getNativeStat()[index].getPercentile(50) / 1000000.0));
-            nativeMap.put("Mean", Double.toString(meanNativeMem));
-            nativeMap.put("StandardDeviation", Double.toString(metricCollector.getNativeStat()[index].getStandardDeviation() / 1000000.0));
-            nativeMap.put("Variance", Double.toString(metricCollector.getNativeStat()[index].getVariance()));
+            /* adding heap */
+            addStats(true, heapMap, metricCollector.getHeapStat()[index]);
+            /* adding native */
+            addStats(true, nativeMap, metricCollector.getNativeStat()[index]);
 
-            if(index != 2)
+            if (index == 0)
             {
-                if(metricCollector.maxNativeSize < maxNativeMem)
-                {
-                    metricCollector.maxNativeSize = maxNativeMem;
-                }
-
-                if(metricCollector.meanNativeSize < meanNativeMem)
-                {
-                    metricCollector.meanNativeSize = meanNativeMem;
-                }
+                MetricCollector.heapSumValues += metricCollector.getHeapStat()[index].getMean();
+                MetricCollector.nativeSumValues += metricCollector.getNativeStat()[index].getMean();
             }
 
+            heapObject.put(type, heapMap);
             nativeObject.put(type, nativeMap);
         }
 
-        MetricCollector.nativeSumValues += metricCollector.meanNativeSize;
-
-        if(MetricCollector.maxNativeOverIterations < metricCollector.maxNativeSize)
-        {
-            MetricCollector.maxNativeOverIterations = metricCollector.maxNativeSize;
-        }
-
-
+        /* adding resident memory */
         Map<String, String> residentMap = new HashMap<>();
-        residentMap.put("Max", Double.toString(metricCollector.getResidentMemoryStat().getMax() / 1000000.0));
-        residentMap.put("Min", Double.toString(metricCollector.getResidentMemoryStat().getMin() / 1000000.0));
-        residentMap.put("Median", Double.toString(metricCollector.getResidentMemoryStat().getPercentile(50) / 1000000.0));
-        residentMap.put("Mean", Double.toString(metricCollector.getResidentMemoryStat().getMean() / 1000000.0));
-        residentMap.put("StandardDeviation", Double.toString(metricCollector.getResidentMemoryStat().getStandardDeviation()/ 1000000.0 ));
-        residentMap.put("Variance", Double.toString(metricCollector.getResidentMemoryStat().getVariance()));
-
-        MetricCollector.chartResidentStat.addValue(metricCollector.getResidentMemoryStat().getPercentile(50) / 1000000.0);
+        addStats(true, residentMap, metricCollector.getResidentMemoryStat());
+        MetricCollector.chartResidentStat.addValue(Util.convertToMB(metricCollector.getResidentMemoryStat().getPercentile(50)));
 
         memoryAnalysisObject.put("Heap", heapObject);
         memoryAnalysisObject.put("Native", nativeObject);
         memoryAnalysisObject.put("Resident", residentMap);
     }
 
-
     static void analyzeCPU(JSONObject cpuAnalysisObject, MetricCollector metricCollector)
     {
         int hyperthreading = metricCollector.hyperThreadingInfo;
-        String [] governors = metricCollector.cpuGovernors;
-        ExtendedOperatingSystemMXBeanImpl extendedOperatingSystemMXBean =  ExtendedOperatingSystemMXBeanImpl.getInstance();
+        String[] governors = metricCollector.cpuGovernors;
+        ExtendedOperatingSystemMXBeanImpl extendedOperatingSystemMXBean =
+                ExtendedOperatingSystemMXBeanImpl.getInstance();
 
         String model = metricCollector.cpuModel;
 
-        for(int i = 0; i < Constants.NO_OF_CORES; i++)
+        for (int i = 0; i < Constants.NO_OF_CORES; i++)
         {
-            JSONObject coreObject  = new JSONObject();
-            coreObject.put("Max", metricCollector.cpuMetricsImpl.getFreqStat()[i].getMax());
-            coreObject.put("Median", metricCollector.cpuMetricsImpl.getFreqStat()[i].getPercentile(50));
-            coreObject.put("Min", metricCollector.cpuMetricsImpl.getFreqStat()[i].getMin());
-            coreObject.put("Mean", metricCollector.cpuMetricsImpl.getFreqStat()[i].getMean());
-            coreObject.put("StandardDeviation", metricCollector.cpuMetricsImpl.getFreqStat()[i].getStandardDeviation());
-            coreObject.put("Variance", metricCollector.cpuMetricsImpl.getFreqStat()[i].getVariance());
-            coreObject.put("Hyperthreading", hyperthreading);
-            coreObject.put("Governor", governors[i]);
-            coreObject.put("Model", model);
-            cpuAnalysisObject.put("CPU" + i, coreObject);
-
+            Map<String, String> map = new HashMap<>();
+            map.put("Hyperthreading", (hyperthreading == 1) ? "Enabled" : "Disabled");
+            map.put("Governor", governors[i]);
+            map.put("Model", model);
+            addStats(false, map, metricCollector.cpuMetricsImpl.getFreqStat()[i]);
+            cpuAnalysisObject.put("CPU" + i, map);
         }
 
-        JSONObject load = new JSONObject();
-        load.put("Max", metricCollector.cpuMetricsImpl.getCpuLoad().getMax());
-        load.put("Min", metricCollector.cpuMetricsImpl.getCpuLoad().getMin());
-        load.put("Mean", metricCollector.cpuMetricsImpl.getCpuLoad().getMean());
-        load.put("Median", metricCollector.cpuMetricsImpl.getCpuLoad().getPercentile(50));
-        load.put("StandardDeviation", metricCollector.cpuMetricsImpl.getCpuLoad().getStandardDeviation());
-        load.put("Variance", metricCollector.cpuMetricsImpl.getCpuLoad().getVariance());
-        cpuAnalysisObject.put("CpuLoad", load);
+        /* adding cpu load */
+        Map<String, String> loadMap = new HashMap<>();
+        addStats(false, loadMap, metricCollector.cpuMetricsImpl.getCpuLoad());
+        cpuAnalysisObject.put("CpuLoad", loadMap);
 
         MetricCollector.chartCpuLoadStat.addValue(metricCollector.cpuMetricsImpl.getCpuLoad().getPercentile(50));
         CpuMetricsImpl.cpuSecondsStat.addValue(extendedOperatingSystemMXBean.getProcessCpuTime());
+    }
 
+    private static void addStats(boolean isMemory, Map<String, String> map, DescriptiveStatistics statistics)
+    {
+        double div = (1024.0 * 1024.0);
+        if(!isMemory)
+        {
+            div = 1;
+        }
+        double mean = (statistics.getMean());
+        double max = (statistics.getMax());
+
+        map.put("Max", Double.toString(max / div));
+        map.put("Min", Double.toString((statistics.getMin() / div)));
+        map.put("Median",
+                Double.toString((statistics.getPercentile(50) / div)));
+        map.put("Mean", Double.toString(mean / div));
+        map.put("StandardDeviation",
+                Double.toString((statistics.getStandardDeviation() / div)));
+        map.put("Variance", Double.toString((statistics.getVariance() / div)));
     }
 }

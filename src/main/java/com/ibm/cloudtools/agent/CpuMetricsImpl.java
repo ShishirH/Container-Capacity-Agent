@@ -10,9 +10,12 @@ import java.io.RandomAccessFile;
 
 class CpuMetricsImpl implements CpuMetrics
 {
-    DescriptiveStatistics loadStat;
     static DescriptiveStatistics cpuSecondsStat = new DescriptiveStatistics();
-    private DescriptiveStatistics [] freqStat;
+    private static SystemInfo systemInfo = new SystemInfo();
+    private static HardwareAbstractionLayer hardwareAbstractionLayer = systemInfo.getHardware();
+    static CentralProcessor centralProcessor = hardwareAbstractionLayer.getProcessor();
+    DescriptiveStatistics loadStat;
+    private DescriptiveStatistics[] freqStat;
 
     CpuMetricsImpl()
     {
@@ -30,14 +33,11 @@ class CpuMetricsImpl implements CpuMetrics
         return freqStat;
     }
 
-    /* checking hyperthreading. grep -E "cpu cores|siblings|physical id" /proc/cpuinfo. If siblings = 2 * cpu cores, then hyperthreading is enabled for that cpu */
+    /* checking hyperthreading. grep -E "cpu cores|siblings|physical id" /proc/cpuinfo. If siblings = 2 * cpu cores,
+    then hyperthreading is enabled for that cpu */
     public int getHyperthreadingInfo()
     {
-        SystemInfo systemInfo = new SystemInfo();
-        HardwareAbstractionLayer hardwareAbstractionLayer = systemInfo.getHardware();
-        CentralProcessor centralProcessor = hardwareAbstractionLayer.getProcessor();
-
-        return centralProcessor.getLogicalProcessorCount() == 2 * centralProcessor.getPhysicalProcessorCount() ? 1 : 0;
+        return CpuMetricsImpl.centralProcessor.getLogicalProcessorCount() == 2 * centralProcessor.getPhysicalProcessorCount() ? 1 : 0;
     }
 
     /* Reads the governors for the CPUs */
@@ -45,15 +45,15 @@ class CpuMetricsImpl implements CpuMetrics
     {
         String[] governors = new String[Constants.NO_OF_CORES];
 
-        for(int i = 0; i < Constants.NO_OF_CORES; i++)
+        for (int i = 0; i < Constants.NO_OF_CORES; i++)
         {
             try
             {
                 String GOVERNOR_CUR = "/sys/devices/system/cpu/cpu" + i + "/cpufreq/scaling_governor";
                 RandomAccessFile random = new RandomAccessFile(GOVERNOR_CUR, "r");
                 governors[i] = random.readLine();
+                random.close();
             }
-
             catch (IOException e)
             {
                 governors[i] = "NOT FOUND!";
@@ -71,7 +71,7 @@ class CpuMetricsImpl implements CpuMetrics
     {
         String curFrequency;
 
-        for(int core = 0; core < Constants.NO_OF_CORES; core++)
+        for (int core = 0; core < Constants.NO_OF_CORES; core++)
         {
             RandomAccessFile random;
             try
@@ -79,8 +79,8 @@ class CpuMetricsImpl implements CpuMetrics
                 String FREQ_CUR = "/sys/devices/system/cpu/cpu" + core + "/cpufreq/" + "cpuinfo_cur_freq";
                 random = new RandomAccessFile(FREQ_CUR, "r");
                 curFrequency = random.readLine();
+                random.close();
             }
-
             catch (IOException e)
             {
                 curFrequency = "-1";
@@ -93,9 +93,7 @@ class CpuMetricsImpl implements CpuMetrics
     /* reads and returns the model names of the CPU from proc/cpuinfo. Uses Regex. */
     public String getCpuModels()
     {
-        SystemInfo systemInfo = new SystemInfo();
-        HardwareAbstractionLayer hardwareAbstractionLayer = systemInfo.getHardware();
-        return hardwareAbstractionLayer.getProcessor().toString();
+        return CpuMetricsImpl.centralProcessor.toString();
     }
 
     public DescriptiveStatistics getCpuLoad()

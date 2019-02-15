@@ -4,6 +4,7 @@ import com.amihaiemil.eoyaml.YamlMapping;
 import com.cedarsoftware.util.io.JsonWriter;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.knowm.xchart.BitmapEncoder;
 import org.knowm.xchart.XYChart;
 import org.knowm.xchart.XYChartBuilder;
@@ -12,7 +13,6 @@ import java.io.*;
 import java.lang.instrument.Instrumentation;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
 
 @SuppressWarnings("InfiniteLoopStatement unchecked")
 class ContainerAgent extends Thread
@@ -21,43 +21,28 @@ class ContainerAgent extends Thread
     static long buffer;
     static int config;
     static int governorPowersaveFlag = 0;
-
-    double maxMemSize;
-    double meanMemSize;
-    MetricCollector metricCollector;
-
-    private JSONObject monitorObject;
-    private JSONObject analysisObject;
-    private JSONObject summaryObject;
-
     static String comments;
     static int NO_OF_VALUES_CURRENT = 0;
     static int NO_OF_ITERATIONS = 0;
+    static boolean END = false;
+    MetricCollector metricCollector;
+    private JSONObject monitorObject;
+    private JSONObject analysisObject;
+    private JSONObject summaryObject;
 
     private ContainerAgent()
     {
 
         /* creating directories */
-        try
-        {
-            Files.createDirectories(Paths.get("Output"));
-            Files.createDirectories(Paths.get(separatorsToSystem("Output/Charts")));
-            Files.createDirectories(Paths.get(separatorsToSystem("Output/JSONs")));
-        }
-
-        catch (IOException e)
-        {
-            System.err.println("IO EXCEPTION: COULD NOT CREATE REQUIRED DIRECTORIES");
-            return;
-        }
+        if (generateDirs()) return;
 
         try
         {
-            PrintStream printStream = new PrintStream(new FileOutputStream(separatorsToSystem("Output/dump.txt"), true));
+            PrintStream printStream = new PrintStream(new FileOutputStream(Util.separatorsToSystem("Output/dump.txt"),
+                    true));
             System.setErr(printStream);
         }
-
-        catch(FileNotFoundException e)
+        catch (FileNotFoundException e)
         {
             System.err.println("File was not found");
         }
@@ -66,38 +51,17 @@ class ContainerAgent extends Thread
 
     }
 
-    /* reads the input JSON, and starts getDetails() */
     public static void premain(String args, Instrumentation instrumentation)
     {
         try
         {
-            JSONObject inputObject = (JSONObject) new JSONParser().parse(new FileReader(args));
+            readInputJSON(args);
+
             final ContainerAgent containerAgent = new ContainerAgent();
-            final String configuration = (String) inputObject.get("config");
-
-            ContainerAgent.targetMultiplier = (Double) inputObject.get("targetMultiplier");
-            ContainerAgent.buffer = (configuration.equals("perf")) ? 20 : 15;
-            ContainerAgent.config = (configuration.equals("perf")) ? 1 : 0;
-
-            containerAgent.setDaemon(true);
-            Runtime.getRuntime().addShutdownHook(new Thread(() ->
-            {
-                if(NO_OF_VALUES_CURRENT == 0 && NO_OF_ITERATIONS == 0)
-                {
-                    return;
-                }
-
-                generateYamlFile();
-                if(NO_OF_VALUES_CURRENT > 0)
-                {
-                    exportDetails(containerAgent);
-                }
-                createGraphs();
-            }));
+            addShutdownHook(containerAgent);
             containerAgent.start();
         }
-
-        catch(Exception e)
+        catch (Exception e)
         {
             e.printStackTrace();
         }
@@ -109,17 +73,25 @@ class ContainerAgent extends Thread
         {
             getDetails(this);
         }
-
-        catch(Exception e)
+        catch (Exception e)
         {
             e.printStackTrace();
         }
     }
 
+    private static void readInputJSON(String args) throws IOException, ParseException
+    {
+        JSONObject inputObject = (JSONObject) new JSONParser().parse(new FileReader(args));
+        final String configuration = (String) inputObject.get("config");
+
+        ContainerAgent.targetMultiplier = (Double) inputObject.get("targetMultiplier");
+        ContainerAgent.buffer = (configuration.equals("perf")) ? 10 : 5;
+        ContainerAgent.config = (configuration.equals("perf")) ? 0 : 1;
+    }
 
     private static void getDetails(ContainerAgent containerAgent)
     {
-        while(true)
+        while (true)
         {
             containerAgent.monitorObject = new JSONObject();
             containerAgent.analysisObject = new JSONObject();
@@ -137,28 +109,27 @@ class ContainerAgent extends Thread
     {
         /* creating RawData.json that contains raw data */
         createRawJSON(containerAgent);
-        printToFile(separatorsToSystem("Output/JSONs/RawData") + NO_OF_ITERATIONS + ".json", JsonWriter.formatJson(containerAgent.monitorObject.toJSONString()));
+        printToFile(Util.separatorsToSystem("Output/JSONs/RawData") + NO_OF_ITERATIONS + ".json",
+                JsonWriter.formatJson(containerAgent.monitorObject.toJSONString()));
 
         /* adding statistical data to Statistics.json */
         createAnalysisJSON(containerAgent);
-        printToFile(separatorsToSystem("Output/JSONs/Analysis") + NO_OF_ITERATIONS + ".json", JsonWriter.formatJson(containerAgent.analysisObject.toJSONString()));
+        printToFile(Util.separatorsToSystem("Output/JSONs/Analysis") + NO_OF_ITERATIONS + ".json",
+                JsonWriter.formatJson(containerAgent.analysisObject.toJSONString()));
 
         /* cherry picked important data needed to make resource calculations */
         createSummaryJSON(containerAgent);
-        printToFile(separatorsToSystem("Output/JSONs/Summary") + NO_OF_ITERATIONS + ".json", JsonWriter.formatJson(containerAgent.summaryObject.toJSONString()));
+        printToFile(Util.separatorsToSystem("Output/JSONs/Summary") + NO_OF_ITERATIONS + ".json",
+                JsonWriter.formatJson(containerAgent.summaryObject.toJSONString()));
 
         System.out.println("EXPORTED DETAILS: " + ContainerAgent.NO_OF_ITERATIONS);
-        /* removing existing contents */
-        containerAgent.monitorObject = new JSONObject();
-        containerAgent.analysisObject = new JSONObject();
-        containerAgent.summaryObject = new JSONObject();
     }
 
     private static void generateYamlFile()
     {
         /* creating the YAML file */
         YamlMapping yamlMapping = GenerateConfig.createYamlConfig();
-        printToFile(separatorsToSystem("Output/configuration.yml"), ContainerAgent.comments + yamlMapping.toString());
+        printToFile(Util.separatorsToSystem("Output/configuration.yml"), ContainerAgent.comments + yamlMapping.toString());
     }
 
     private static void printToFile(String fileName, String content)
@@ -169,7 +140,6 @@ class ContainerAgent extends Thread
         {
             printWriter = new PrintWriter(file);
         }
-
         catch (FileNotFoundException e)
         {
             System.err.println("IO EXCEPTION: COULD NOT WRITE TO " + fileName);
@@ -202,41 +172,46 @@ class ContainerAgent extends Thread
         RawData.addCpuToMonitor(containerAgent.monitorObject, containerAgent);
     }
 
-    private static void createGraphs()
+    private static void createCharts()
     {
-        double [] time;
+        double[] time;
         System.out.println("Number of values currently are: " + NO_OF_VALUES_CURRENT);
 
 
-        if(NO_OF_VALUES_CURRENT > 0)
+        if (NO_OF_VALUES_CURRENT > 0)
         {
             time = new double[ContainerAgent.NO_OF_ITERATIONS + 1];
         }
-
         else
         {
             time = new double[ContainerAgent.NO_OF_ITERATIONS];
         }
 
         int i;
-        for(i = 0; i < time.length - 1; i++)
+        for (i = 0; i < time.length - 1; i++)
         {
             time[i] = Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES * i;
         }
 
-        time[time.length - 1] = Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES * i + Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES;
-
-        System.err.println("NUMBER OF VALUES CURRENTLY: " + NO_OF_VALUES_CURRENT);
-        System.err.println("NUMBER OF ITERATIONS: " + NO_OF_ITERATIONS);
+        time[time.length - 1] =
+                Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES * i + Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES;
 
         //DescriptiveStatistics [] cpuFrequency = containerAgent.metricCollector.cpuMetricsImpl.getFreqStat();
 
-        double [] cpuLoad =  Arrays.stream(MetricCollector.chartCpuLoadStat.getValues()).filter(x -> !Double.isNaN(x)).toArray();
-        double [] residentSize = Arrays.stream(MetricCollector.chartResidentStat.getValues()).filter(x -> !Double.isNaN(x)).toArray();
+/*
+        double[] cpuLoad =
+                Arrays.stream(MetricCollector.chartCpuLoadStat.getValues()).filter(x -> !Double.isNaN(x)).toArray();
+        double[] residentSize =
+                Arrays.stream(MetricCollector.chartResidentStat.getValues()).filter(x -> !Double.isNaN(x)).toArray();
+*/
 
+        double[] cpuLoad = MetricCollector.chartCpuLoadStat.getValues();
+        double[] residentSize = MetricCollector.chartResidentStat.getValues();
         /* initializing and labelling charts */
-        //final XYChart cpuFrequencyChart = new XYChartBuilder().width(1000).height(1000).title("CPU Frequency").xAxisTitle("Time").yAxisTitle("Frequency").build();
-        final XYChart cpuLoadChart = new XYChartBuilder().width(1000).height(1000).title("CPU Load").xAxisTitle("Time").yAxisTitle("Load").build();
+        //final XYChart cpuFrequencyChart = new XYChartBuilder().width(1000).height(1000).title("CPU Frequency")
+        // .xAxisTitle("Time").yAxisTitle("Frequency").build();
+        final XYChart cpuLoadChart = new XYChartBuilder().width(1000).height(1000).title("CPU Load").xAxisTitle("Time"
+        ).yAxisTitle("Load").build();
         final XYChart residentMemChart = new XYChartBuilder().width(1000).height(1000).title("Resident Memory")
                 .xAxisTitle("Time").yAxisTitle("Resident Memory").build();
 
@@ -253,27 +228,52 @@ class ContainerAgent extends Thread
         /* exporting chart to PNG. */
         try
         {
-            //BitmapEncoder.saveBitmapWithDPI(cpuFrequencyChart, separatorsToSystem("Output/Charts/cpuFrequency") + NO_OF_ITERATIONS, BitmapEncoder.BitmapFormat.PNG, 300);
-            BitmapEncoder.saveBitmapWithDPI(residentMemChart, separatorsToSystem("Output/Charts/residentMemory"), BitmapEncoder.BitmapFormat.PNG, 300);
-            BitmapEncoder.saveBitmapWithDPI(cpuLoadChart, separatorsToSystem("Output/Charts/cpuLoad"), BitmapEncoder.BitmapFormat.PNG, 300);
+            //BitmapEncoder.saveBitmapWithDPI(cpuFrequencyChart, separatorsToSystem("Output/Charts/cpuFrequency") +
+            // NO_OF_ITERATIONS, BitmapEncoder.BitmapFormat.PNG, 300);
+            BitmapEncoder.saveBitmapWithDPI(residentMemChart, Util.separatorsToSystem("Output/Charts/residentMemory"),
+                    BitmapEncoder.BitmapFormat.PNG, 300);
+            BitmapEncoder.saveBitmapWithDPI(cpuLoadChart, Util.separatorsToSystem("Output/Charts/cpuLoad"),
+                    BitmapEncoder.BitmapFormat.PNG, 300);
         }
-
         catch (IOException e)
         {
             System.err.println("IO ERROR: COULD NOT WRITE CHARTS TO FILE.");
         }
     }
 
-    private static String separatorsToSystem(String res)
+    private boolean generateDirs()
     {
-        if (res==null) return null;
-        if (File.separatorChar=='\\') {
-            // From Windows to Linux/Mac
-            return res.replace('/', File.separatorChar);
-        } else {
-            // From Linux/Mac to Windows
-            return res.replace('\\', File.separatorChar);
+        try
+        {
+            Files.createDirectories(Paths.get("Output"));
+            Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/Charts")));
+            Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/JSONs")));
         }
+        catch (IOException e)
+        {
+            System.err.println("IO EXCEPTION: COULD NOT CREATE REQUIRED DIRECTORIES");
+            return true;
+        }
+        return false;
+    }
+
+    private static void addShutdownHook(ContainerAgent containerAgent)
+    {
+        containerAgent.setDaemon(true);
+        Runtime.getRuntime().addShutdownHook(new Thread(() ->
+        {
+            if (NO_OF_VALUES_CURRENT == 0 && NO_OF_ITERATIONS == 0)
+            {
+                return;
+            }
+
+            generateYamlFile();
+            if (NO_OF_VALUES_CURRENT > 0)
+            {
+                exportDetails(containerAgent);
+            }
+            createCharts();
+        }));
     }
 
 }
