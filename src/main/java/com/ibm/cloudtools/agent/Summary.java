@@ -1,6 +1,7 @@
 package com.ibm.cloudtools.agent;
 
 import org.json.simple.JSONObject;
+import oshi.util.FormatUtil;
 
 @SuppressWarnings("unchecked")
 class Summary
@@ -12,45 +13,43 @@ class Summary
         JSONObject nativeObject = new JSONObject();
         JSONObject memoryObject = new JSONObject();
 
-        double maxResidentMem = GenerateConfig.additionalBuffer(containerAgent.metricCollector.getResidentMemoryStat().getMax());
-        double meanResidentMem = GenerateConfig.additionalBuffer(containerAgent.metricCollector.getResidentMemoryStat().getMean());
+        double maxResidentMem =
+                Util.additionalBuffer(containerAgent.metricCollector.getResidentMemoryStat().getMax());
+        double meanResidentMem =
+                Util.additionalBuffer(containerAgent.metricCollector.getResidentMemoryStat().getMean());
 
-        containerAgent.metricCollector.maxHeapSize = GenerateConfig.additionalBuffer(containerAgent.metricCollector.maxHeapSize);
-        containerAgent.metricCollector.maxNativeSize = GenerateConfig.additionalBuffer(containerAgent.metricCollector.maxNativeSize);
-        containerAgent.metricCollector.meanHeapSize = GenerateConfig.additionalBuffer(containerAgent.metricCollector.meanHeapSize);
-        containerAgent.metricCollector.meanNativeSize = GenerateConfig.additionalBuffer(containerAgent.metricCollector.meanNativeSize);
+        double maxHeap = Util.additionalBuffer(containerAgent.metricCollector.heapStat[0].getMax());
+        double meanHeap = Util.additionalBuffer(containerAgent.metricCollector.heapStat[0].getMean());
+        double maxNative = Util.additionalBuffer(containerAgent.metricCollector.nativeStat[0].getMax());
+        double meanNative = Util.additionalBuffer(containerAgent.metricCollector.nativeStat[0].getMean());
 
-        /* converting to MB */
-        maxResidentMem /= 1000000.0;
-        meanResidentMem /= 1000000.0;
+        heapObject.put("MaxSize", FormatUtil.formatBytes((long) maxHeap));
+        heapObject.put("MeanSize", FormatUtil.formatBytes((long) meanHeap));
+        nativeObject.put("MaxSize", FormatUtil.formatBytes((long) maxNative));
+        nativeObject.put("MeanSize", FormatUtil.formatBytes((long) meanNative));
 
-        heapObject.put("MaxSize", containerAgent.metricCollector.maxHeapSize);
-        heapObject.put("MeanSize", containerAgent.metricCollector.meanHeapSize);
-        nativeObject.put("MaxSize", containerAgent.metricCollector.maxNativeSize);
-        nativeObject.put("MeanSize", containerAgent.metricCollector.meanNativeSize);
-
-        memoryObject.put("MaxSize", containerAgent.metricCollector.maxHeapSize + containerAgent.metricCollector.maxNativeSize);
-        memoryObject.put("MaxResident", maxResidentMem);
-        memoryObject.put("MeanResident", meanResidentMem);
+        memoryObject.put("MaxSize", FormatUtil.formatBytes((long) (maxHeap + maxNative)));
+        memoryObject.put("MaxResident", FormatUtil.formatBytes((long) maxResidentMem));
+        memoryObject.put("MeanResident", FormatUtil.formatBytes((long) meanResidentMem));
         memoryObject.put("Heap", heapObject);
         memoryObject.put("Native", nativeObject);
         summaryObject.put("Memory", memoryObject);
-        containerAgent.maxMemSize = containerAgent.metricCollector.maxHeapSize + containerAgent.metricCollector.maxNativeSize;
-        containerAgent.meanMemSize = containerAgent.metricCollector.meanHeapSize + containerAgent.metricCollector.meanNativeSize;
     }
 
     /* Get important CPU data from the statistical analysis done */
     static void getSummaryCPU(JSONObject summaryObject, ContainerAgent containerAgent)
     {
         JSONObject cpuObject = new JSONObject();
-        for(int i = 0; i < Constants.NO_OF_CORES; i++)
+        for (int i = 0; i < Constants.NO_OF_CORES; i++)
         {
             JSONObject coreObject = new JSONObject();
-            coreObject.put("MaxFreq", GenerateConfig.additionalBuffer(containerAgent.metricCollector.cpuMetricsImpl.getFreqStat()[i].getMax()));
+            coreObject.put("MaxFreq",
+                    Util.additionalBuffer(containerAgent.metricCollector.cpuMetricsImpl.getFreqStat()[i].getMax()));
             cpuObject.put("CPU" + i, coreObject);
         }
 
-        cpuObject.put("Load", GenerateConfig.additionalBuffer(containerAgent.metricCollector.cpuMetricsImpl.getCpuLoad().getMax()));
+        cpuObject.put("Load",
+                Util.additionalBuffer(containerAgent.metricCollector.cpuMetricsImpl.getCpuLoad().getMax()));
         summaryObject.put("CPU", cpuObject);
     }
 }

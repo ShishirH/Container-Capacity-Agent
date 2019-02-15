@@ -18,6 +18,10 @@ class DetectVM
     https://www.webopedia.com/TERM/O/OUI.html
     */
     private static final Map<String, String> vmMacAddressOUI = new HashMap<>();
+    private static final String[] vmModelArray = new String[]{"KVM", "lguest", "OpenVZ", "Qemu",
+            "Microsoft Virtual PC", "VMWare", "linux-vserver", "Xen", "FreeBSD Jail", "VirtualBox", "Parallels",
+            "Linux Containers", "LXC"};
+
     static
     {
         vmMacAddressOUI.put("00:50:56", "VMware ESX 3");
@@ -29,11 +33,6 @@ class DetectVM
         vmMacAddressOUI.put("00:16:3E", "Xen or Oracle VM");
         vmMacAddressOUI.put("08:00:27", "VirtualBox");
     }
-
-    private static final String[] vmModelArray = new String[] { "KVM", "lguest", "OpenVZ", "Qemu",
-            "Microsoft Virtual PC", "VMWare", "linux-vserver", "Xen", "FreeBSD Jail", "VirtualBox", "Parallels",
-            "Linux Containers", "LXC" };
-
 
     /**
      * The function attempts to identify which Virtual Machine (VM) based on
@@ -50,11 +49,12 @@ class DetectVM
         /* Try well known MAC addresses */
         NetworkIF[] nifs = hardwareAbstractionLayer.getNetworkIFs();
 
-        for (NetworkIF nif : nifs) {
+        for (NetworkIF nif : nifs)
+        {
             String mac = nif.getMacaddr().substring(0, 8).toUpperCase();
             if (vmMacAddressOUI.containsKey(mac))
             {
-                if(nif.getName().equals("virbr0") || nif.getName().equals("virbr1"))
+                if (nif.getName().contains("virbr"))
                 {
                     continue;
                 }
@@ -74,7 +74,8 @@ class DetectVM
             }
         }
         String manufacturer = hardwareAbstractionLayer.getComputerSystem().getManufacturer();
-        if ("Microsoft Corporation".equals(manufacturer) && "Virtual Machine".equals(model)) {
+        if ("Microsoft Corporation".equals(manufacturer) && "Virtual Machine".equals(model))
+        {
             System.err.println("RUNNING ON VM: Microsoft Hyper-V");
         }
 
