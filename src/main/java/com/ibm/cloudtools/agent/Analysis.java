@@ -77,11 +77,8 @@ class Analysis
 
     private static void addStats(boolean isMemory, Map<String, String> map, DescriptiveStatistics statistics)
     {
-        double div = Constants.ONE_MB;
-        if(!isMemory)
-        {
-            div = 1;
-        }
+        double div = (isMemory) ? Constants.ONE_MB : 1;
+
         double mean = (statistics.getMean());
         double max = (statistics.getMax());
 
