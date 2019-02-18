@@ -2,15 +2,14 @@ package com.ibm.cloudtools.agent;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
-public interface CpuMetrics
-{
-    int getHyperthreadingInfo();
+public interface CpuMetrics {
+  int getHyperthreadingInfo();
 
-    String[] getCpuGovernors();
+  String[] getCpuGovernors();
 
-    void getCpuCurrentFrequency();
+  void getCpuCurrentFrequency();
 
-    String getCpuModels();
+  String getCpuModels();
 
-    DescriptiveStatistics getCpuLoad();
+  DescriptiveStatistics getCpuLoad();
 }
