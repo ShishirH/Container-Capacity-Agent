@@ -1,19 +1,44 @@
-package com.ibm.cloudtools.agent;
+/*
+ * ******************************************************************************
+ *  * Copyright (c) 2012, 2018 IBM Corp. and others
+ *  *
+ *  * This program and the accompanying materials are made available under
+ *  * the terms of the Eclipse Public License 2.0 which accompanies this
+ *  * distribution and is available at https://www.eclipse.org/legal/epl-2.0/
+ *  * or the Apache License, Version 2.0 which accompanies this distribution and
+ *  * is available at https://www.apache.org/licenses/LICENSE-2.0.
+ *  *
+ *  * This Source Code may also be made available under the following
+ *  * Secondary Licenses when the conditions for such availability set
+ *  * forth in the Eclipse Public License, v. 2.0 are satisfied: GNU
+ *  * General Public License, version 2 with the GNU Classpath
+ *  * Exception [1] and GNU General Public License, version 2 with the
+ *  * OpenJDK Assembly Exception [2].
+ *  *
+ *  * [1] https://www.gnu.org/software/classpath/license.html
+ *  * [2] http://openjdk.java.net/legal/assembly-exception.html
+ *  *
+ *  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ *  ******************************************************************************
+ */
+
+package com.ibm.cloudtools.exportMetrics;
 
 import com.amihaiemil.eoyaml.Yaml;
 import com.amihaiemil.eoyaml.YamlMapping;
+import com.ibm.cloudtools.agent.*;
 
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
 
-class GenerateConfig
+public class GenerateConfig
 {
+    public static String name;
+    public static String apiVersion;
     private static DecimalFormat decimalFormat = new DecimalFormat("#.###");
     private static DecimalFormat integerFormat = new DecimalFormat("#");
-    static String name;
-    static String apiVersion;
 
-    static YamlMapping createYamlConfig()
+    public static YamlMapping createYamlConfig()
     {
         System.err.println("Max Heap: " + MetricCollector.maxHeapOverIterations);
         System.err.println("Max Native: " + MetricCollector.maxNativeOverIterations);
@@ -32,9 +57,9 @@ class GenerateConfig
                                 .add("env", Yaml.createYamlMappingBuilder()
                                         .add("- name", "JAVA_TOOL_OPTIONS")
                                         .add("value", getMaxRamPercentage()
-                                                        + generateXmnGencon()
-                                                        + generateXmoGencon()
-                                                        + setGCPolicy())
+                                                + generateXmnGencon()
+                                                + generateXmoGencon()
+                                                + setGCPolicy())
                                         .build())
                                 .add("resources", Yaml.createYamlMappingBuilder()
                                         .add("requests", Yaml.createYamlMappingBuilder()
@@ -115,17 +140,17 @@ class GenerateConfig
         String policy = "gencon";
         int weight = 0;
 
-        if(SystemDump.hardwareAbstractionLayer.getProcessor().isCpu64bit())
+        if (SystemDump.hardwareAbstractionLayer.getProcessor().isCpu64bit())
         {
             weight++;
         }
 
-        if(MetricCollector.maxHeapOverIterations > (Constants.ONE_GB * 4))
+        if (MetricCollector.maxHeapOverIterations > (Constants.ONE_GB * 4))
         {
             weight++;
         }
 
-        if(weight > 3)
+        if (weight > 3)
         {
             policy = "balanced";
         }

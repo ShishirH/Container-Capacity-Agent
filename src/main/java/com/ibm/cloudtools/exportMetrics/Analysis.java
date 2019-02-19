@@ -1,6 +1,32 @@
-package com.ibm.cloudtools.agent;
+/*
+ * ******************************************************************************
+ *  * Copyright (c) 2012, 2018 IBM Corp. and others
+ *  *
+ *  * This program and the accompanying materials are made available under
+ *  * the terms of the Eclipse Public License 2.0 which accompanies this
+ *  * distribution and is available at https://www.eclipse.org/legal/epl-2.0/
+ *  * or the Apache License, Version 2.0 which accompanies this distribution and
+ *  * is available at https://www.apache.org/licenses/LICENSE-2.0.
+ *  *
+ *  * This Source Code may also be made available under the following
+ *  * Secondary Licenses when the conditions for such availability set
+ *  * forth in the Eclipse Public License, v. 2.0 are satisfied: GNU
+ *  * General Public License, version 2 with the GNU Classpath
+ *  * Exception [1] and GNU General Public License, version 2 with the
+ *  * OpenJDK Assembly Exception [2].
+ *  *
+ *  * [1] https://www.gnu.org/software/classpath/license.html
+ *  * [2] http://openjdk.java.net/legal/assembly-exception.html
+ *  *
+ *  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ *  ******************************************************************************
+ */
 
-import com.ibm.lang.management.internal.ExtendedOperatingSystemMXBeanImpl;
+package com.ibm.cloudtools.exportMetrics;
+
+import com.ibm.cloudtools.agent.Constants;
+import com.ibm.cloudtools.agent.MetricCollector;
+import com.ibm.cloudtools.agent.Util;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.simple.JSONObject;
 
@@ -8,9 +34,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 @SuppressWarnings("unchecked")
-class Analysis
+public class Analysis
 {
-    static void analyzeMemory(JSONObject memoryAnalysisObject, MetricCollector metricCollector)
+    public static void analyzeMemory(JSONObject memoryAnalysisObject, MetricCollector metricCollector)
     {
         JSONObject heapObject = new JSONObject();
         JSONObject nativeObject = new JSONObject();
@@ -27,7 +53,7 @@ class Analysis
             /* adding native */
             addStats(true, nativeMap, metricCollector.getNativeStat()[index]);
 
-            if (index == 0)
+            if (index == 0) //considering only committed
             {
                 MetricCollector.heapSumValues += metricCollector.getHeapStat()[index].getMean();
                 MetricCollector.nativeSumValues += metricCollector.getNativeStat()[index].getMean();
@@ -47,32 +73,24 @@ class Analysis
         memoryAnalysisObject.put("Resident", residentMap);
     }
 
-    static void analyzeCPU(JSONObject cpuAnalysisObject, MetricCollector metricCollector)
+    public static void analyzeCPU(JSONObject cpuAnalysisObject, MetricCollector metricCollector)
     {
-        int hyperthreading = metricCollector.hyperThreadingInfo;
-        String[] governors = metricCollector.cpuGovernors;
-        ExtendedOperatingSystemMXBeanImpl extendedOperatingSystemMXBean =
-                ExtendedOperatingSystemMXBeanImpl.getInstance();
-
-        String model = metricCollector.cpuModel;
-
         for (int i = 0; i < Constants.NO_OF_CORES; i++)
         {
             Map<String, String> map = new HashMap<>();
-            map.put("Hyperthreading", (hyperthreading == 1) ? "Enabled" : "Disabled");
-            map.put("Governor", governors[i]);
-            map.put("Model", model);
-            addStats(false, map, metricCollector.cpuMetricsImpl.getFreqStat()[i]);
+            map.put("Hyperthreading", (metricCollector.hyperThreadingInfo == 1) ? "Enabled" : "Disabled");
+            map.put("Governor", metricCollector.cpuGovernors[i]);
+            map.put("Model", metricCollector.cpuModel);
+            addStats(false, map, metricCollector.linuxCpuMetricsImpl.getFreqStat()[i]);
             cpuAnalysisObject.put("CPU" + i, map);
         }
 
         /* adding cpu load */
         Map<String, String> loadMap = new HashMap<>();
-        addStats(false, loadMap, metricCollector.cpuMetricsImpl.getCpuLoad());
+        addStats(false, loadMap, metricCollector.linuxCpuMetricsImpl.getCpuLoad());
         cpuAnalysisObject.put("CpuLoad", loadMap);
 
-        MetricCollector.chartCpuLoadStat.addValue(metricCollector.cpuMetricsImpl.getCpuLoad().getPercentile(50));
-        CpuMetricsImpl.cpuSecondsStat.addValue(extendedOperatingSystemMXBean.getProcessCpuTime());
+        MetricCollector.chartCpuLoadStat.addValue(metricCollector.linuxCpuMetricsImpl.getCpuLoad().getPercentile(50));
     }
 
     private static void addStats(boolean isMemory, Map<String, String> map, DescriptiveStatistics statistics)
