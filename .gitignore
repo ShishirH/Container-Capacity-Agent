@@ -13,7 +13,11 @@ buildNumber.properties
 # Avoid ignoring Maven wrapper jar file (.jar files are usually ignored)
 !/.mvn/wrapper/maven-wrapper.jar
 
-.idea/workspace.xml
 javacore.20190215.170406.6115.0001.txt
 javacore.20190215.170658.7167.0001.txt
 src/test/java/
+/.idea/
+javacore.20190219.121036.14343.0001.txt
+javacore.20190219.141859.21900.0001.txt
+javacore.20190219.141939.21994.0001.txt
+javacore.20190219.142019.22108.0001.txt

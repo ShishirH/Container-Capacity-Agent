@@ -29,7 +29,6 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 public interface CpuMetrics
 {
-
     /* checking hyperthreading. If logical_processor_count = 2 * physical_count,
     then hyperthreading is enabled for that cpu */
     int getHyperthreadingInfo();

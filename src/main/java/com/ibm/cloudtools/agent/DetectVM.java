@@ -36,7 +36,6 @@ import java.util.Map;
  */
 public class DetectVM
 {
-
     /*
     Constant for Mac address OUI portion, the first 24 bits of MAC address
     https://www.webopedia.com/TERM/O/OUI.html
