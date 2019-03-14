@@ -1,6 +1,6 @@
 /*
  * ******************************************************************************
- *  * Copyright (c) 2012, 2018 IBM Corp. and others
+ *  * Copyright (c) 2012, 2019 IBM Corp. and others
  *  *
  *  * This program and the accompanying materials are made available under
  *  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -27,7 +27,7 @@ package com.ibm.cloudtools.exportMetrics;
 import com.ibm.cloudtools.agent.Constants;
 import com.ibm.cloudtools.agent.ContainerAgent;
 import com.ibm.cloudtools.agent.MetricCollector;
-import com.ibm.cloudtools.agent.SystemDump;
+import com.ibm.cloudtools.system.SystemDump;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -62,14 +62,14 @@ public class RawData
     {
         cpuObject.put(
                 "Load",
-                Arrays.toString(containerAgent.metricCollector.linuxCpuMetricsImpl.getCpuLoad().getValues()));
+                Arrays.toString(containerAgent.metricCollector.cpuMetricsImpl.getCpuLoad().getValues()));
     }
 
     private static void addCpuCurrentFrequency(JSONObject cpuObject, ContainerAgent containerAgent)
     {
         int index = 0;
         DescriptiveStatistics[] cpuFrequencies =
-                containerAgent.metricCollector.linuxCpuMetricsImpl.getFreqStat();
+                containerAgent.metricCollector.cpuMetricsImpl.getFreqStat();
         Map<String, String> cpuMap = new HashMap<>();
         for (DescriptiveStatistics frequency : cpuFrequencies)
         {

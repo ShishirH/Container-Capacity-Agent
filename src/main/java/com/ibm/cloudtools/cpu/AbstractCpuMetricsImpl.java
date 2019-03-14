@@ -1,6 +1,6 @@
 /*
  * ******************************************************************************
- *  * Copyright (c) 2012, 2018 IBM Corp. and others
+ *  * Copyright (c) 2012, 2019 IBM Corp. and others
  *  *
  *  * This program and the accompanying materials are made available under
  *  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -25,7 +25,7 @@
 package com.ibm.cloudtools.cpu;
 
 import com.ibm.cloudtools.agent.Constants;
-import com.ibm.cloudtools.agent.SystemDump;
+import com.ibm.cloudtools.system.SystemDump;
 import com.sun.jna.Platform;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
@@ -38,8 +38,7 @@ public class AbstractCpuMetricsImpl implements CpuMetrics
         if(Platform.isLinux())
             return new LinuxCpuMetricsImpl();
 
-        /*TODO
-        * Write implementations for other operating systems*/
+        /*TODO Write implementations for other operating systems*/
         return new AbstractCpuMetricsImpl();
     }
 
@@ -53,6 +52,8 @@ public class AbstractCpuMetricsImpl implements CpuMetrics
         return null;
     }
 
+    /* checking hyperthreading. If logical_processor_count = 2 * physical_count,
+    then hyperthreading is enabled for that cpu */
     public int getHyperthreadingInfo()
     {
         return SystemDump.centralProcessor.getLogicalProcessorCount()

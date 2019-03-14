@@ -1,6 +1,6 @@
 /*
  * ******************************************************************************
- *  * Copyright (c) 2012, 2018 IBM Corp. and others
+ *  * Copyright (c) 2012, 2019 IBM Corp. and others
  *  *
  *  * This program and the accompanying materials are made available under
  *  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -65,12 +65,12 @@ public class MetricCollector
     public static double tenuredSOAMax = -1;
     public static double tenuredLOAMax = -1;
 
-    public AbstractCpuMetricsImpl linuxCpuMetricsImpl = AbstractCpuMetricsImpl.getCpuMetrics();
+    public AbstractCpuMetricsImpl cpuMetricsImpl = AbstractCpuMetricsImpl.getCpuMetrics();
     MemoryMetricsImpl memoryMetrics;
 
-    public final int hyperThreadingInfo = linuxCpuMetricsImpl.getHyperthreadingInfo();
-    public String[] cpuGovernors = linuxCpuMetricsImpl.getCpuGovernors();
-    public String cpuModel = linuxCpuMetricsImpl.getCpuModels();
+    public final int hyperThreadingInfo = cpuMetricsImpl.getHyperthreadingInfo();
+    public String[] cpuGovernors = cpuMetricsImpl.getCpuGovernors();
+    public String cpuModel = cpuMetricsImpl.getCpuModels();
     public DescriptiveStatistics residentMemoryStat = new DescriptiveStatistics();
 
     private MemoryMXBeanImpl memoryMXBean = MemoryMXBeanImpl.getInstance();

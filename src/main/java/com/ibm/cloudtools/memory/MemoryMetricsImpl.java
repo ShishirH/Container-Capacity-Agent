@@ -1,6 +1,6 @@
 /*
  * ******************************************************************************
- *  * Copyright (c) 2012, 2018 IBM Corp. and others
+ *  * Copyright (c) 2012, 2019 IBM Corp. and others
  *  *
  *  * This program and the accompanying materials are made available under
  *  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -28,6 +28,7 @@ import com.ibm.cloudtools.agent.Constants;
 import com.ibm.cloudtools.agent.ContainerAgent;
 import com.ibm.cloudtools.agent.MetricCollector;
 import com.ibm.cloudtools.agent.Util;
+import com.ibm.cloudtools.system.SystemDump;
 import com.ibm.java.lang.management.internal.MemoryMXBeanImpl;
 import com.ibm.lang.management.internal.ExtendedOperatingSystemMXBeanImpl;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
@@ -139,7 +140,7 @@ public class MemoryMetricsImpl
             memoryPoolMXBeans = memoryMXBean.getMemoryPoolMXBeans(false);
 
             double cpuLoad = extendedOperatingSystemMXBean.getProcessCpuLoad() * Constants.NO_OF_CORES;
-            metricCollector.linuxCpuMetricsImpl.loadStat.addValue(cpuLoad);
+            metricCollector.cpuMetricsImpl.loadStat.addValue(cpuLoad);
             MetricCollector.cpuLoadValues += cpuLoad;
             if (MetricCollector.maxCpuLoadOverIterations < cpuLoad)
             {
@@ -149,7 +150,8 @@ public class MemoryMetricsImpl
             getDivision(metricCollector, memoryPoolMXBeans);
             getHeapAndNative(metricCollector, memoryMXBean);
 
-            long processPhysicalMemorySize = extendedOperatingSystemMXBean.getProcessPhysicalMemorySize();
+
+            long processPhysicalMemorySize = SystemDump.getResidentSize();
             metricCollector.residentMemoryStat.addValue(processPhysicalMemorySize);
             MetricCollector.residentSumValues += processPhysicalMemorySize / (1024.0 * 1024.0);
 
@@ -159,7 +161,7 @@ public class MemoryMetricsImpl
                 MetricCollector.maxResidentOverIterations = (processPhysicalMemorySize / (1024.0 * 1024.0));
             }
 
-            metricCollector.linuxCpuMetricsImpl.getCpuCurrentFrequency();
+            metricCollector.cpuMetricsImpl.getCpuCurrentFrequency();
 
             try
             {

@@ -1,6 +1,6 @@
 /*
  * ******************************************************************************
- *  * Copyright (c) 2012, 2018 IBM Corp. and others
+ *  * Copyright (c) 2012, 2019 IBM Corp. and others
  *  *
  *  * This program and the accompanying materials are made available under
  *  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -26,7 +26,6 @@ package com.ibm.cloudtools.exportMetrics;
 
 import com.ibm.cloudtools.agent.Constants;
 import com.ibm.cloudtools.agent.MetricCollector;
-import com.ibm.cloudtools.agent.Util;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.simple.JSONObject;
 
@@ -53,12 +52,6 @@ public class Analysis
             /* adding native */
             addStats(true, nativeMap, metricCollector.getNativeStat()[index]);
 
-            if (index == 0) //considering only committed
-            {
-                MetricCollector.heapSumValues += metricCollector.getHeapStat()[index].getMean();
-                MetricCollector.nativeSumValues += metricCollector.getNativeStat()[index].getMean();
-            }
-
             heapObject.put(type, heapMap);
             nativeObject.put(type, nativeMap);
         }
@@ -66,7 +59,6 @@ public class Analysis
         /* adding resident memory */
         Map<String, String> residentMap = new HashMap<>();
         addStats(true, residentMap, metricCollector.getResidentMemoryStat());
-        MetricCollector.chartResidentStat.addValue(Util.convertToMB(metricCollector.getResidentMemoryStat().getPercentile(50)));
 
         memoryAnalysisObject.put("Heap", heapObject);
         memoryAnalysisObject.put("Native", nativeObject);
@@ -81,16 +73,16 @@ public class Analysis
             map.put("Hyperthreading", (metricCollector.hyperThreadingInfo == 1) ? "Enabled" : "Disabled");
             map.put("Governor", metricCollector.cpuGovernors[i]);
             map.put("Model", metricCollector.cpuModel);
-            addStats(false, map, metricCollector.linuxCpuMetricsImpl.getFreqStat()[i]);
+            addStats(false, map, metricCollector.cpuMetricsImpl.getFreqStat()[i]);
             cpuAnalysisObject.put("CPU" + i, map);
         }
 
         /* adding cpu load */
         Map<String, String> loadMap = new HashMap<>();
-        addStats(false, loadMap, metricCollector.linuxCpuMetricsImpl.getCpuLoad());
+        addStats(false, loadMap, metricCollector.cpuMetricsImpl.getCpuLoad());
         cpuAnalysisObject.put("CpuLoad", loadMap);
 
-        MetricCollector.chartCpuLoadStat.addValue(metricCollector.linuxCpuMetricsImpl.getCpuLoad().getPercentile(50));
+        MetricCollector.chartCpuLoadStat.addValue(metricCollector.cpuMetricsImpl.getCpuLoad().getPercentile(50));
     }
 
     private static void addStats(boolean isMemory, Map<String, String> map, DescriptiveStatistics statistics)

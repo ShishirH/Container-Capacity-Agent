@@ -11,11 +11,11 @@ mvn package
 ```
 
 ## Usage
-Copy the jar file with dependencies in target folder to your application, and run the application normally, with the tool as a javaagent. Make sure sufficient stress is provided to the application, either by simulating real world scenarios, or by running a test suite.
+Copy the jar file with dependencies in target folder to your application, and run the application normally, with the tool as a javaagent. Make sure sufficient stress is provided to the application, either by simulating real world scenarios through a test suite.
 
 To run, use
 ```bash
-java -javaagent:ContainerAgent-1.0.0-jar-with-dependencies.jar <your application>
+java -javaagent:ContainerAgent-1.0.0-jar-with-dependencies.jar your-application
 ```
 
 After the run of the application completes, an Output YAML file will be generated that will suggest the limits and resources to reserve, while also recommending OpenJ9 specific options.

@@ -22,18 +22,34 @@
  *  ******************************************************************************
  */
 
-package com.ibm.cloudtools.cpu;
+package com.ibm.cloudtools.statistics;
+
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
-
-public interface CpuMetrics
+public class DetectOutlier
 {
-    int getHyperthreadingInfo();
+    public static DescriptiveStatistics removeOutliers(DescriptiveStatistics values)
+    {
+        double twentyFivePercentile = values.getPercentile(25);
+        double seventyFivePercentile = values.getPercentile(75);
 
-    void getCpuCurrentFrequency();
+        double IQR = seventyFivePercentile - twentyFivePercentile;
 
-    String getCpuModels();
+        double Q1 = twentyFivePercentile - (1.5 * IQR);
+        double Q3 = seventyFivePercentile + (1.5 * IQR);
 
-    DescriptiveStatistics getCpuLoad();
+        DescriptiveStatistics newList = new DescriptiveStatistics();
+
+        for(double value : values.getValues())
+        {
+            if(!((value < Q1) || (value > Q3)))
+            {
+                newList.addValue(value);
+            }
+        }
+
+        return newList;
+    }
+
 }

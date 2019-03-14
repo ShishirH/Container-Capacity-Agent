@@ -1,6 +1,6 @@
 /*
  * ******************************************************************************
- *  * Copyright (c) 2012, 2018 IBM Corp. and others
+ *  * Copyright (c) 2012, 2019 IBM Corp. and others
  *  *
  *  * This program and the accompanying materials are made available under
  *  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -26,10 +26,23 @@ package com.ibm.cloudtools.exportMetrics;
 
 import com.amihaiemil.eoyaml.Yaml;
 import com.amihaiemil.eoyaml.YamlMapping;
-import com.ibm.cloudtools.agent.*;
+import com.ibm.cloudtools.agent.Constants;
+import com.ibm.cloudtools.agent.ContainerAgent;
+import com.ibm.cloudtools.agent.MetricCollector;
+import com.ibm.cloudtools.agent.Util;
+import com.ibm.cloudtools.statistics.DetectOutlier;
+import com.ibm.cloudtools.system.DetectVM;
+import com.ibm.cloudtools.system.SystemDump;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
+import java.io.IOException;
 import java.math.RoundingMode;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.DecimalFormat;
+import java.util.Arrays;
+import java.util.List;
 
 public class GenerateConfig
 {
@@ -40,6 +53,30 @@ public class GenerateConfig
 
     public static YamlMapping createYamlConfig()
     {
+        List<String> resList = null;
+
+        try
+        {
+            resList = Files.readAllLines(Paths.get(Util.separatorsToSystem("Output/resValues.txt")), Charset.forName("utf-8"));
+            System.err.println("Old list: " + resList);
+        }
+
+        catch (IOException e)
+        {
+            System.err.println("COULD NOT CREATE YAML CONFIGURATION!");
+        }
+
+        DescriptiveStatistics resStat = new DescriptiveStatistics();
+
+        for(String value : resList)
+        {
+            resStat.addValue(Double.parseDouble(value));
+
+        }
+
+        resStat = DetectOutlier.removeOutliers(resStat);
+        System.err.println("New list is: " + Arrays.toString(resStat.getValues()));
+
         System.err.println("Max Heap: " + MetricCollector.maxHeapOverIterations);
         System.err.println("Max Native: " + MetricCollector.maxNativeOverIterations);
         System.err.println("Max Resident: " + MetricCollector.maxResidentOverIterations);
@@ -56,7 +93,7 @@ public class GenerateConfig
                                 .add("- name", name)
                                 .add("env", Yaml.createYamlMappingBuilder()
                                         .add("- name", "JAVA_TOOL_OPTIONS")
-                                        .add("value", getMaxRamPercentage()
+                                        .add("value", getMaxRamPercentage(resStat)
                                                 + generateXmnGencon()
                                                 + generateXmoGencon()
                                                 + setGCPolicy())
@@ -64,7 +101,7 @@ public class GenerateConfig
                                 .add("resources", Yaml.createYamlMappingBuilder()
                                         .add("requests", Yaml.createYamlMappingBuilder()
                                                 .add("memory",
-                                                        decimalFormat.format(Util.additionalBuffer(getMeanFromIterations(MetricCollector.residentSumValues))) + "MB")
+                                                        decimalFormat.format(Util.additionalBuffer(resStat.getPercentile(50))) + "MB")
                                                 .add("cpu",
                                                         decimalFormat.format(Util.additionalBuffer(getMeanFromIterations(MetricCollector.cpuLoadValues) * ContainerAgent.targetMultiplier)))
                                                 .build()
@@ -94,11 +131,11 @@ public class GenerateConfig
         ContainerAgent.comments += (DetectVM.identifyVM()) ? "#RUNNING ON VM. SOME INFO MIGHT BE UNAVAILABLE\n" : "";
     }
 
-    private static String getMaxRamPercentage()
+    private static String getMaxRamPercentage(DescriptiveStatistics resNoOutliers)
     {
         decimalFormat.setRoundingMode(RoundingMode.CEILING);
         return "-XX:MaxRAMPercentage=" + decimalFormat.format((Util.additionalBuffer
-                ((MetricCollector.maxHeapOverIterations * 100.0)) / MetricCollector.maxResidentOverIterations));
+                ((MetricCollector.maxHeapOverIterations * 100.0)) / resNoOutliers.getMax()));
     }
 
     private static double getMeanFromIterations(double value)
@@ -115,6 +152,9 @@ public class GenerateConfig
     private static String generateXmnGencon()
     {
         integerFormat.setRoundingMode(RoundingMode.CEILING);
+        System.err.println("Max Nursery Allocated: " + MetricCollector.nurseryAllocatedMax);
+        System.err.println("Max Nursery Survivor: " + MetricCollector.nurserySurvivorMax);
+        System.err.println("Xmns: " + (MetricCollector.nurseryAllocatedMax + MetricCollector.nurserySurvivorMax));
         double xmn = Util.additionalBuffer(MetricCollector.nurseryAllocatedMax + MetricCollector.nurserySurvivorMax);
         return " -Xmns" + integerFormat.format((Util.convertToMB(xmn))) + "M";
     }
@@ -122,11 +162,14 @@ public class GenerateConfig
     private static String generateXmoGencon()
     {
         integerFormat.setRoundingMode(RoundingMode.CEILING);
+        System.err.println("Max Tenured LOA: " + MetricCollector.tenuredLOAMax);
+        System.err.println("Max Tenured SOA: " + MetricCollector.tenuredSOAMax);
+        System.err.println("xmos: " + (MetricCollector.tenuredSOAMax + MetricCollector.tenuredLOAMax));
         double xmo = Util.additionalBuffer(MetricCollector.tenuredLOAMax + MetricCollector.tenuredSOAMax);
         return " -Xmos" + integerFormat.format((Util.convertToMB(xmo))) + "M";
     }
 
-    /*TODO
+    /*TODO Look into setting GC policies based on the application
     When to use balanced GC policy?
     - It is 64 bit
     - Heap size is greater than 4GB

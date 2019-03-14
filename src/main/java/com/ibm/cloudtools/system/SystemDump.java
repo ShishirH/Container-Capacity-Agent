@@ -1,6 +1,6 @@
 /*
  * ******************************************************************************
- *  * Copyright (c) 2012, 2018 IBM Corp. and others
+ *  * Copyright (c) 2012, 2019 IBM Corp. and others
  *  *
  *  * This program and the accompanying materials are made available under
  *  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -22,8 +22,9 @@
  *  ******************************************************************************
  */
 
-package com.ibm.cloudtools.agent;
+package com.ibm.cloudtools.system;
 
+import com.ibm.cloudtools.agent.ContainerAgent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import oshi.SystemInfo;
@@ -44,7 +45,7 @@ public class SystemDump
     public static CentralProcessor centralProcessor = hardwareAbstractionLayer.getProcessor();
     private static OperatingSystem operatingSystem = systemInfo.getOperatingSystem();
 
-    static void printSystemLog()
+    public static void printSystemLog()
     {
         System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "INFO");
         System.setProperty(org.slf4j.impl.SimpleLogger.LOG_FILE_KEY, "System.err");
@@ -240,6 +241,7 @@ public class SystemDump
         {
             long usable = fs.getUsableSpace();
             long total = fs.getTotalSpace();
+
             LOG.info(
                     String.format(
                             " %s (%s) [%s] %s of %s free (%.1f%%), %s of %s files free (%.1f%%) is %s "
@@ -321,5 +323,12 @@ public class SystemDump
         {
             LOG.info(usbDevice.toString());
         }
+    }
+
+    public static long getResidentSize()
+    {
+        OSProcess osProcess = operatingSystem.getProcess(operatingSystem.getProcessId());
+        ContainerAgent.resValues.addValue(osProcess.getResidentSetSize() / (1024 * 1024));
+        return osProcess.getResidentSetSize();
     }
 }

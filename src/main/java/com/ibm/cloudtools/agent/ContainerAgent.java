@@ -1,6 +1,6 @@
 /*
  * ******************************************************************************
- *  * Copyright (c) 2012, 2018 IBM Corp. and others
+ *  * Copyright (c) 2012, 2019 IBM Corp. and others
  *  *
  *  * This program and the accompanying materials are made available under
  *  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -30,6 +30,8 @@ import com.ibm.cloudtools.exportMetrics.Analysis;
 import com.ibm.cloudtools.exportMetrics.GenerateConfig;
 import com.ibm.cloudtools.exportMetrics.RawData;
 import com.ibm.cloudtools.exportMetrics.Summary;
+import com.ibm.cloudtools.system.SystemDump;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -46,7 +48,7 @@ import java.nio.file.Paths;
 public class ContainerAgent extends Thread
 {
     public static double targetMultiplier;
-    public static long buffer;
+    static long buffer;
     public static int config;
     public static int governorPowersaveFlag = 0;
     public static String comments;
@@ -57,10 +59,10 @@ public class ContainerAgent extends Thread
     private JSONObject monitorObject;
     private JSONObject analysisObject;
     private JSONObject summaryObject;
+    public static DescriptiveStatistics resValues = new DescriptiveStatistics();
 
     private ContainerAgent()
     {
-
         /* creating directories */
         if (!createDirs()) return;
 
@@ -110,7 +112,7 @@ public class ContainerAgent extends Thread
 
         ContainerAgent.targetMultiplier = (Double) inputObject.get("targetMultiplier");
 
-        /*TODO*/
+        /*TODO Look at what ideal values for the differnet configurations would be*/
         ContainerAgent.config = (configuration.equals("perf")) ? 0 : 1;
     }
 
@@ -124,9 +126,44 @@ public class ContainerAgent extends Thread
 
             containerAgent.metricCollector = new MetricCollector();
             containerAgent.metricCollector.memoryMetrics.getMemoryMetrics(containerAgent.metricCollector);
-            exportJSONs(containerAgent);
-            ContainerAgent.NO_OF_VALUES_CURRENT = 0;
-            ContainerAgent.NO_OF_ITERATIONS++;
+
+            System.err.println("Resident size: " + SystemDump.getResidentSize() / (1024 * 1024)
+                    + "\tHeap used max: " + containerAgent.metricCollector.heapStat[1].getMax()
+                    + "\tNative used max: " + containerAgent.metricCollector.nativeStat[1].getMax());
+
+            System.err.println("Heap committed max: " + containerAgent.metricCollector.heapStat[0].getMax()
+                    + "\tNative committed max: " + containerAgent.metricCollector.nativeStat[0].getMax());
+
+            System.err.println("-------------------------------------------------------------------------------------");
+            System.err.println();
+
+            MetricCollector.heapSumValues += containerAgent.metricCollector.getHeapStat()[0].getMean();
+            MetricCollector.nativeSumValues += containerAgent.metricCollector.getNativeStat()[0].getMean();
+            MetricCollector.chartResidentStat.addValue(Util.convertToMB(containerAgent.metricCollector.getResidentMemoryStat().getPercentile(50)));
+
+            PrintStream resValueStream;
+            try
+            {
+                resValueStream = new PrintStream(new FileOutputStream(Util.separatorsToSystem("Output/resValues.txt") , true));
+            }
+            catch (FileNotFoundException e)
+            {
+                System.err.println("COULD NOT CREATE FILE!");
+                ContainerAgent.NO_OF_VALUES_CURRENT = 0;
+                ContainerAgent.NO_OF_ITERATIONS++;
+                continue;
+            }
+
+            for(double resValue : ContainerAgent.resValues.getValues())
+            {
+                resValueStream.println(resValue);
+            }
+
+            resValueStream.flush();
+            resValueStream.close();
+
+            ContainerAgent.resValues = new DescriptiveStatistics();
+
         }
     }
 
@@ -218,20 +255,6 @@ public class ContainerAgent extends Thread
                 Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES * i
                         + Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES;
 
-        // DescriptiveStatistics [] cpuFrequency =
-        // containerAgent.metricCollector.linuxCpuMetricsImpl.getFreqStat();
-
-        //
-
-        //final XYChart cpuFrequencyChart = new XYChartBuilder().width(1000).height(1000).title("CPU
-
-        //Frequency")
-
-        //.xAxisTitle("Time").yAxisTitle("Frequency").build();
-
-        //
-
-        /* initializing and labelling charts */
         final XYChart cpuLoadChart =
                 new XYChartBuilder()
                         .width(1000)
@@ -253,24 +276,9 @@ public class ContainerAgent extends Thread
         cpuLoadChart.addSeries("y(x)", time, MetricCollector.chartCpuLoadStat.getValues());
         residentMemChart.addSeries("y(x)", time, MetricCollector.chartResidentStat.getValues());
 
-        //
-
-        //for(int j = 0; j < Constants.NO_OF_CORES; j++)
-
-        //{
-
-        //cpuFrequencyChart.addSeries("CPU" + j, time, cpuFrequency[j].getValues());
-
-        //}
-
-        //
-
         /* exporting chart to PNG. */
         try
         {
-            // BitmapEncoder.saveBitmapWithDPI(cpuFrequencyChart,
-            // separatorsToSystem("Output/Charts/cpuFrequency") +
-            // NO_OF_ITERATIONS, BitmapEncoder.BitmapFormat.PNG, 300);
             BitmapEncoder.saveBitmapWithDPI(
                     residentMemChart,
                     Util.separatorsToSystem("Output/Charts/residentMemory"),
@@ -302,6 +310,7 @@ public class ContainerAgent extends Thread
                             }
 
                             generateYamlFile();
+/*
                             if (NO_OF_VALUES_CURRENT > 0)
                             {
                                 exportJSONs(containerAgent);
@@ -315,6 +324,7 @@ public class ContainerAgent extends Thread
                             {
                                 System.err.println("COULD NOT CREATE GRAPHS");
                             }
+*/
                         }));
     }
 
@@ -335,8 +345,10 @@ public class ContainerAgent extends Thread
         try
         {
             Files.createDirectories(Paths.get("Output"));
+/*
             Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/Charts")));
             Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/JSONs")));
+*/
         }
         catch (IOException e)
         {
