@@ -35,9 +35,6 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
-import org.knowm.xchart.BitmapEncoder;
-import org.knowm.xchart.XYChart;
-import org.knowm.xchart.XYChartBuilder;
 
 import java.io.*;
 import java.lang.instrument.Instrumentation;
@@ -47,7 +44,7 @@ import java.nio.file.Paths;
 @SuppressWarnings("InfiniteLoopStatement unchecked")
 public class ContainerAgent extends Thread
 {
-    public static double targetMultiplier;
+    public static double cpuTargetMultiplier;
     static long buffer;
     public static int config;
     public static int governorPowersaveFlag = 0;
@@ -60,6 +57,8 @@ public class ContainerAgent extends Thread
     private JSONObject analysisObject;
     private JSONObject summaryObject;
     public static DescriptiveStatistics resValues = new DescriptiveStatistics();
+    public static DescriptiveStatistics heapValues = new DescriptiveStatistics();
+    public static DescriptiveStatistics nativeValues = new DescriptiveStatistics();
 
     private ContainerAgent()
     {
@@ -110,7 +109,7 @@ public class ContainerAgent extends Thread
         ContainerAgent.buffer =
                 inputObject.containsKey("buffer") ? (Long) inputObject.get("buffer") : 10;
 
-        ContainerAgent.targetMultiplier = (Double) inputObject.get("targetMultiplier");
+        ContainerAgent.cpuTargetMultiplier = (Double) inputObject.get("cpuTargetMultiplier");
 
         /*TODO Look at what ideal values for the differnet configurations would be*/
         ContainerAgent.config = (configuration.equals("perf")) ? 0 : 1;
@@ -142,9 +141,13 @@ public class ContainerAgent extends Thread
             MetricCollector.chartResidentStat.addValue(Util.convertToMB(containerAgent.metricCollector.getResidentMemoryStat().getPercentile(50)));
 
             PrintStream resValueStream;
+            PrintStream heapValueStream;
+            PrintStream nativeValueStream;
             try
             {
                 resValueStream = new PrintStream(new FileOutputStream(Util.separatorsToSystem("Output/resValues.txt") , true));
+                heapValueStream = new PrintStream(new FileOutputStream(Util.separatorsToSystem("Output/heapValues.txt") , true));
+                nativeValueStream = new PrintStream(new FileOutputStream(Util.separatorsToSystem("Output/nativeValues.txt") , true));
             }
             catch (FileNotFoundException e)
             {
@@ -159,10 +162,31 @@ public class ContainerAgent extends Thread
                 resValueStream.println(resValue);
             }
 
+            for(double heapValue : ContainerAgent.heapValues.getValues())
+            {
+                heapValueStream.println(heapValue);
+            }
+
+            for(double nativeValue : ContainerAgent.nativeValues.getValues())
+            {
+                nativeValueStream.println(nativeValue);
+            }
+
             resValueStream.flush();
             resValueStream.close();
 
+            heapValueStream.flush();
+            heapValueStream.close();
+
+            nativeValueStream.flush();
+            nativeValueStream.close();
+
             ContainerAgent.resValues = new DescriptiveStatistics();
+            ContainerAgent.nativeValues = new DescriptiveStatistics();
+            ContainerAgent.heapValues = new DescriptiveStatistics();
+
+            ContainerAgent.NO_OF_VALUES_CURRENT = 0;
+            ContainerAgent.NO_OF_ITERATIONS++;
 
         }
     }
@@ -240,63 +264,6 @@ public class ContainerAgent extends Thread
         RawData.addCpuToMonitor(containerAgent.monitorObject, containerAgent);
     }
 
-    private static void createCharts()
-    {
-        double[] time = (NO_OF_VALUES_CURRENT > 0) ? new double[ContainerAgent.NO_OF_ITERATIONS + 1] :
-                new double[ContainerAgent.NO_OF_ITERATIONS];
-
-        int i;
-        for (i = 0; i < time.length - 1; i++)
-        {
-            time[i] = Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES * i;
-        }
-
-        time[time.length - 1] =
-                Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES * i
-                        + Constants.TIME_TO_SLEEP * Constants.MAX_NUMBER_OF_VALUES;
-
-        final XYChart cpuLoadChart =
-                new XYChartBuilder()
-                        .width(1000)
-                        .height(1000)
-                        .title("CPU Load")
-                        .xAxisTitle("Time")
-                        .yAxisTitle("Load")
-                        .build();
-
-        final XYChart residentMemChart =
-                new XYChartBuilder()
-                        .width(1000)
-                        .height(1000)
-                        .title("Resident Memory")
-                        .xAxisTitle("Time")
-                        .yAxisTitle("Resident Memory")
-                        .build();
-
-        cpuLoadChart.addSeries("y(x)", time, MetricCollector.chartCpuLoadStat.getValues());
-        residentMemChart.addSeries("y(x)", time, MetricCollector.chartResidentStat.getValues());
-
-        /* exporting chart to PNG. */
-        try
-        {
-            BitmapEncoder.saveBitmapWithDPI(
-                    residentMemChart,
-                    Util.separatorsToSystem("Output/Charts/residentMemory"),
-                    BitmapEncoder.BitmapFormat.PNG,
-                    300);
-
-            BitmapEncoder.saveBitmapWithDPI(
-                    cpuLoadChart,
-                    Util.separatorsToSystem("Output/Charts/cpuLoad"),
-                    BitmapEncoder.BitmapFormat.PNG,
-                    300);
-        }
-        catch (IOException e)
-        {
-            System.err.println("IO ERROR: COULD NOT WRITE CHARTS TO FILE.");
-        }
-    }
-
     private static void addShutdownHook(ContainerAgent containerAgent)
     {
         containerAgent.setDaemon(true);
@@ -345,10 +312,8 @@ public class ContainerAgent extends Thread
         try
         {
             Files.createDirectories(Paths.get("Output"));
-/*
             Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/Charts")));
-            Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/JSONs")));
-*/
+            //Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/JSONs")));
         }
         catch (IOException e)
         {

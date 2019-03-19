@@ -63,6 +63,9 @@ public class MemoryMetricsImpl
         {
             MetricCollector.maxHeapOverIterations = Util.convertToMB(heapCommitted);
         }
+
+        ContainerAgent.heapValues.addValue(memoryMXBean.getHeapMemoryUsage().getUsed());
+        ContainerAgent.nativeValues.addValue(memoryMXBean.getNonHeapMemoryUsage().getUsed());
     }
 
     private void getDivision(

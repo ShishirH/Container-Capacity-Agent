@@ -34,6 +34,9 @@ import com.ibm.cloudtools.statistics.DetectOutlier;
 import com.ibm.cloudtools.system.DetectVM;
 import com.ibm.cloudtools.system.SystemDump;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import org.knowm.xchart.BitmapEncoder;
+import org.knowm.xchart.XYChart;
+import org.knowm.xchart.XYChartBuilder;
 
 import java.io.IOException;
 import java.math.RoundingMode;
@@ -54,27 +57,38 @@ public class GenerateConfig
     public static YamlMapping createYamlConfig()
     {
         List<String> resList = null;
+        List<String> heapList = null;
+        List<String> nativeList = null;
 
         try
         {
             resList = Files.readAllLines(Paths.get(Util.separatorsToSystem("Output/resValues.txt")), Charset.forName("utf-8"));
+            heapList = Files.readAllLines(Paths.get(Util.separatorsToSystem("Output/heapValues.txt")), Charset.forName("utf-8"));
+            nativeList = Files.readAllLines(Paths.get(Util.separatorsToSystem("Output/nativeValues.txt")), Charset.forName("utf-8"));
             System.err.println("Old list: " + resList);
-        }
-
-        catch (IOException e)
+        } catch (IOException e)
         {
             System.err.println("COULD NOT CREATE YAML CONFIGURATION!");
         }
 
         DescriptiveStatistics resStat = new DescriptiveStatistics();
+        DescriptiveStatistics heapStat = new DescriptiveStatistics();
+        DescriptiveStatistics nativeStat = new DescriptiveStatistics();
 
-        for(String value : resList)
-        {
-            resStat.addValue(Double.parseDouble(value));
 
-        }
+        createGraphs(resList, "Resident Memory", "Time", "RES", resStat, "Output/Charts/residentMemory");
+        createGraphs(heapList, "Heap Memory", "Time", "Heap", heapStat, "Output/Charts/Heap");
+        createGraphs(nativeList, "Native Memory", "Time", "NativeMem", nativeStat, "Output/Charts/Native");
 
         resStat = DetectOutlier.removeOutliers(resStat);
+        heapStat = DetectOutlier.removeOutliers(heapStat);
+        nativeStat = DetectOutlier.removeOutliers(nativeStat);
+
+
+        createGraphs(null, "Resident Memory", "Time", "RES", resStat, "Output/Charts/residentMemoryNoOutliers");
+        createGraphs(null, "Heap Memory", "Time", "Heap", heapStat, "Output/Charts/HeapNoOutliers");
+        createGraphs(null, "Native Memory", "Time", "NativeMem", nativeStat, "Output/Charts/NativeNoOutliers");
+
         System.err.println("New list is: " + Arrays.toString(resStat.getValues()));
 
         System.err.println("Max Heap: " + MetricCollector.maxHeapOverIterations);
@@ -84,7 +98,6 @@ public class GenerateConfig
         /* to round up, upto 3 decimal places */
         decimalFormat.setRoundingMode(RoundingMode.CEILING);
         addComments();
-
 
         return Yaml.createYamlMappingBuilder()
                 .add("apiVersion", apiVersion)
@@ -103,14 +116,14 @@ public class GenerateConfig
                                                 .add("memory",
                                                         decimalFormat.format(Util.additionalBuffer(resStat.getPercentile(50))) + "MB")
                                                 .add("cpu",
-                                                        decimalFormat.format(Util.additionalBuffer(getMeanFromIterations(MetricCollector.cpuLoadValues) * ContainerAgent.targetMultiplier)))
+                                                        decimalFormat.format(Util.additionalBuffer(getMeanFromIterations(MetricCollector.cpuLoadValues) * ContainerAgent.cpuTargetMultiplier)))
                                                 .build()
                                         )
                                         .add("limits", Yaml.createYamlMappingBuilder()
                                                 .add("memory",
                                                         decimalFormat.format(Util.additionalBuffer(MetricCollector.maxResidentOverIterations)) + "MB")
                                                 .add("cpu",
-                                                        decimalFormat.format(Util.additionalBuffer(MetricCollector.maxCpuLoadOverIterations * ContainerAgent.targetMultiplier)))
+                                                        decimalFormat.format(Util.additionalBuffer(MetricCollector.maxCpuLoadOverIterations * ContainerAgent.cpuTargetMultiplier)))
                                                 .build()
                                         )
                                         .build()
@@ -198,6 +211,59 @@ public class GenerateConfig
             policy = "balanced";
         }
         return " -Xgcpolicy:" + policy;
+    }
+
+    private static void createGraphs(List<String> list, String title, String xAxisTitle, String yAxisTitle,
+                                     DescriptiveStatistics stats, String fileName)
+    {
+        try
+        {
+            for (String value : list)
+            {
+                stats.addValue(Double.parseDouble(value));
+            }
+        }
+
+        catch (Exception e)
+        {
+            System.err.println("Printing without outliers");
+        }
+
+
+        double[] time = new double[stats.getValues().length];
+
+        time[0] = 0;
+
+        for (int i = 1; i < time.length; i++)
+        {
+            time[i] = Constants.TIME_TO_SLEEP + time[i - 1];
+        }
+
+        try
+        {
+            final XYChart chart =
+                    new XYChartBuilder()
+                            .width(1000)
+                            .height(1000)
+                            .title(title)
+                            .xAxisTitle(xAxisTitle)
+                            .yAxisTitle(yAxisTitle)
+                            .build();
+
+            chart.addSeries("y(x)", time, stats.getValues());
+
+            BitmapEncoder.saveBitmapWithDPI(
+                    chart,
+                    Util.separatorsToSystem(fileName),
+                    BitmapEncoder.BitmapFormat.PNG,
+                    600);
+        }
+
+        catch (Exception e)
+        {
+            System.err.println("IO ERROR: COULD NOT WRITE CHARTS TO FILE.");
+        }
+
     }
 
 }
