@@ -33,7 +33,7 @@ public interface CpuMetrics
 
     void getCpuCurrentFrequency();
 
-    String getCpuModels();
+    String getCpuModel();
 
     DescriptiveStatistics getCpuLoad();
 }

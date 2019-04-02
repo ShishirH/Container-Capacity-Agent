@@ -27,16 +27,13 @@ package com.ibm.cloudtools.exportMetrics;
 import com.amihaiemil.eoyaml.Yaml;
 import com.amihaiemil.eoyaml.YamlMapping;
 import com.ibm.cloudtools.agent.Constants;
-import com.ibm.cloudtools.agent.ContainerAgent;
+import com.ibm.cloudtools.agent.InputParams;
 import com.ibm.cloudtools.agent.MetricCollector;
 import com.ibm.cloudtools.agent.Util;
 import com.ibm.cloudtools.statistics.DetectOutlier;
 import com.ibm.cloudtools.system.DetectVM;
 import com.ibm.cloudtools.system.SystemDump;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import org.knowm.xchart.BitmapEncoder;
-import org.knowm.xchart.XYChart;
-import org.knowm.xchart.XYChartBuilder;
 
 import java.io.IOException;
 import java.math.RoundingMode;
@@ -44,86 +41,80 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
-import java.util.Arrays;
 import java.util.List;
 
 public class GenerateConfig
 {
-    public static String name;
-    public static String apiVersion;
-    private static DecimalFormat decimalFormat = new DecimalFormat("#.###");
+    public static String comments;
+    private static DecimalFormat precisionThree = new DecimalFormat("#.###");
     private static DecimalFormat integerFormat = new DecimalFormat("#");
 
     public static YamlMapping createYamlConfig()
     {
-        List<String> resList = null;
-        List<String> heapList = null;
-        List<String> nativeList = null;
-
-        try
-        {
-            resList = Files.readAllLines(Paths.get(Util.separatorsToSystem("Output/resValues.txt")), Charset.forName("utf-8"));
-            heapList = Files.readAllLines(Paths.get(Util.separatorsToSystem("Output/heapValues.txt")), Charset.forName("utf-8"));
-            nativeList = Files.readAllLines(Paths.get(Util.separatorsToSystem("Output/nativeValues.txt")), Charset.forName("utf-8"));
-            System.err.println("Old list: " + resList);
-        } catch (IOException e)
-        {
-            System.err.println("COULD NOT CREATE YAML CONFIGURATION!");
-        }
+        List<String> resList;
+        List<String> heapList;
+        List<String> nativeList;
+        List<String> cpuList;
 
         DescriptiveStatistics resStat = new DescriptiveStatistics();
         DescriptiveStatistics heapStat = new DescriptiveStatistics();
         DescriptiveStatistics nativeStat = new DescriptiveStatistics();
+        DescriptiveStatistics cpuLoadStat = new DescriptiveStatistics();
 
 
-        createGraphs(resList, "Resident Memory", "Time", "RES", resStat, "Output/Charts/residentMemory");
-        createGraphs(heapList, "Heap Memory", "Time", "Heap", heapStat, "Output/Charts/Heap");
-        createGraphs(nativeList, "Native Memory", "Time", "NativeMem", nativeStat, "Output/Charts/Native");
+        try
+        {
+            resList = Files.readAllLines(Paths.get(Util.separatorsToSystem("Output/resValues.txt")), Charset.forName("utf-8"));
+            copyFromList(resList, resStat);
+            heapList = Files.readAllLines(Paths.get(Util.separatorsToSystem("Output/heapUsedValues.txt")), Charset.forName("utf-8"));
+            copyFromList(heapList, heapStat);
+            nativeList = Files.readAllLines(Paths.get(Util.separatorsToSystem("Output/nativeUsedValues.txt")), Charset.forName("utf-8"));
+            copyFromList(nativeList, nativeStat);
+            cpuList = Files.readAllLines(Paths.get(Util.separatorsToSystem("Output/cpuLoad.txt")), Charset.forName("utf-8"));
+            copyFromList(cpuList, cpuLoadStat);
+        }
 
-        resStat = DetectOutlier.removeOutliers(resStat);
-        heapStat = DetectOutlier.removeOutliers(heapStat);
-        nativeStat = DetectOutlier.removeOutliers(nativeStat);
+        catch (IOException e)
+        {
+            System.err.println("COULD NOT CREATE YAML CONFIGURATION!");
+            return Yaml.createYamlMappingBuilder().build();
+        }
 
-
-        createGraphs(null, "Resident Memory", "Time", "RES", resStat, "Output/Charts/residentMemoryNoOutliers");
-        createGraphs(null, "Heap Memory", "Time", "Heap", heapStat, "Output/Charts/HeapNoOutliers");
-        createGraphs(null, "Native Memory", "Time", "NativeMem", nativeStat, "Output/Charts/NativeNoOutliers");
-
-        System.err.println("New list is: " + Arrays.toString(resStat.getValues()));
-
-        System.err.println("Max Heap: " + MetricCollector.maxHeapOverIterations);
-        System.err.println("Max Native: " + MetricCollector.maxNativeOverIterations);
-        System.err.println("Max Resident: " + MetricCollector.maxResidentOverIterations);
+        DescriptiveStatistics resStatNoOutliers = DetectOutlier.removeOutliers(resStat);
+        DescriptiveStatistics heapStatNoOutliers = DetectOutlier.removeOutliers(heapStat);
+        DescriptiveStatistics cpuLoadStatNoOutliers = DetectOutlier.removeOutliers(cpuLoadStat);
 
         /* to round up, upto 3 decimal places */
-        decimalFormat.setRoundingMode(RoundingMode.CEILING);
+        precisionThree.setRoundingMode(RoundingMode.CEILING);
         addComments();
 
         return Yaml.createYamlMappingBuilder()
-                .add("apiVersion", apiVersion)
+                .add("apiVersion", InputParams.apiVersion)
                 .add("spec", Yaml.createYamlMappingBuilder()
                         .add("containers", Yaml.createYamlMappingBuilder()
-                                .add("- name", name)
+                                .add("- name", InputParams.name)
                                 .add("env", Yaml.createYamlMappingBuilder()
                                         .add("- name", "JAVA_TOOL_OPTIONS")
-                                        .add("value", getMaxRamPercentage(resStat)
+                                        .add("value", getMaxRamPercentage(resStatNoOutliers, heapStatNoOutliers)
                                                 + generateXmnGencon()
                                                 + generateXmoGencon()
-                                                + setGCPolicy())
+                                                + setGCPolicy(heapStat))
                                         .build())
                                 .add("resources", Yaml.createYamlMappingBuilder()
                                         .add("requests", Yaml.createYamlMappingBuilder()
                                                 .add("memory",
-                                                        decimalFormat.format(Util.additionalBuffer(resStat.getPercentile(50))) + "MB")
+                                                        precisionThree.format(Util.additionalBuffer(resStatNoOutliers.getPercentile(50))) + "MB")
                                                 .add("cpu",
-                                                        decimalFormat.format(Util.additionalBuffer(getMeanFromIterations(MetricCollector.cpuLoadValues) * ContainerAgent.cpuTargetMultiplier)))
+                                                        precisionThree.format(Util.additionalBuffer(cpuLoadStatNoOutliers.getPercentile(50)
+                                                                * InputParams.cpuTargetMultiplier)))
                                                 .build()
                                         )
                                         .add("limits", Yaml.createYamlMappingBuilder()
                                                 .add("memory",
-                                                        decimalFormat.format(Util.additionalBuffer(MetricCollector.maxResidentOverIterations)) + "MB")
+                                                        precisionThree.format(Util.additionalBuffer(resStat.getMax())) + "MB")
                                                 .add("cpu",
-                                                        decimalFormat.format(Util.additionalBuffer(MetricCollector.maxCpuLoadOverIterations * ContainerAgent.cpuTargetMultiplier)))
+                                                        precisionThree.format(Util.additionalBuffer(cpuLoadStat.getMax()
+                                                                * InputParams.cpuTargetMultiplier)))
                                                 .build()
                                         )
                                         .build()
@@ -135,27 +126,20 @@ public class GenerateConfig
 
     private static void addComments()
     {
-        ContainerAgent.comments = (ContainerAgent.config == 0) ? "#OPTIMIZED FOR PERFORMANCE\n" : "#OPTIMIZED FOR " +
+        comments = (InputParams.config == 0) ? "#OPTIMIZED FOR PERFORMANCE\n" : "#OPTIMIZED FOR " +
                 "LESS RESOURCE USAGE\n";
 
-        ContainerAgent.comments += (ContainerAgent.governorPowersaveFlag == 0) ? "" : "#WARNING: CPU GOVERNOR SET TO " +
+        comments += (MetricCollector.governorPowersaveFlag == 0) ? "" : "#WARNING: CPU GOVERNOR SET TO " +
                 "POWERSAVE. RESULTS MIGHT BE UNRELIABLE\n";
 
-        ContainerAgent.comments += (DetectVM.identifyVM()) ? "#RUNNING ON VM. SOME INFO MIGHT BE UNAVAILABLE\n" : "";
+        comments += (DetectVM.identifyVM()) ? "#RUNNING ON VM. SOME INFO MIGHT BE UNAVAILABLE\n" : "";
     }
 
-    private static String getMaxRamPercentage(DescriptiveStatistics resNoOutliers)
+    private static String getMaxRamPercentage(DescriptiveStatistics resNoOutliers, DescriptiveStatistics heapNoOutliers)
     {
-        decimalFormat.setRoundingMode(RoundingMode.CEILING);
-        return "-XX:MaxRAMPercentage=" + decimalFormat.format((Util.additionalBuffer
-                ((MetricCollector.maxHeapOverIterations * 100.0)) / resNoOutliers.getMax()));
-    }
-
-    private static double getMeanFromIterations(double value)
-    {
-        double numberOfValues =
-                ContainerAgent.NO_OF_VALUES_CURRENT + (Constants.MAX_NUMBER_OF_VALUES * ContainerAgent.NO_OF_ITERATIONS);
-        return value / numberOfValues;
+        precisionThree.setRoundingMode(RoundingMode.CEILING);
+        return "-XX:MaxRAMPercentage=" + precisionThree.format((Util.additionalBuffer
+                ((heapNoOutliers.getMax()) * 100) / resNoOutliers.getMax()));
     }
 
     /* Currently only for gencon
@@ -165,21 +149,15 @@ public class GenerateConfig
     private static String generateXmnGencon()
     {
         integerFormat.setRoundingMode(RoundingMode.CEILING);
-        System.err.println("Max Nursery Allocated: " + MetricCollector.nurseryAllocatedMax);
-        System.err.println("Max Nursery Survivor: " + MetricCollector.nurserySurvivorMax);
-        System.err.println("Xmns: " + (MetricCollector.nurseryAllocatedMax + MetricCollector.nurserySurvivorMax));
         double xmn = Util.additionalBuffer(MetricCollector.nurseryAllocatedMax + MetricCollector.nurserySurvivorMax);
-        return " -Xmns" + integerFormat.format((Util.convertToMB(xmn))) + "M";
+        return " -Xmns" + integerFormat.format((xmn / Constants.ONE_MB)) + "M";
     }
 
     private static String generateXmoGencon()
     {
         integerFormat.setRoundingMode(RoundingMode.CEILING);
-        System.err.println("Max Tenured LOA: " + MetricCollector.tenuredLOAMax);
-        System.err.println("Max Tenured SOA: " + MetricCollector.tenuredSOAMax);
-        System.err.println("xmos: " + (MetricCollector.tenuredSOAMax + MetricCollector.tenuredLOAMax));
         double xmo = Util.additionalBuffer(MetricCollector.tenuredLOAMax + MetricCollector.tenuredSOAMax);
-        return " -Xmos" + integerFormat.format((Util.convertToMB(xmo))) + "M";
+        return " -Xmos" + integerFormat.format((xmo / Constants.ONE_MB)) + "M";
     }
 
     /*TODO Look into setting GC policies based on the application
@@ -191,7 +169,7 @@ public class GenerateConfig
     - The application does not use many large arrays( > 0.1% of heap size)
     */
 
-    private static String setGCPolicy()
+    private static String setGCPolicy(DescriptiveStatistics heapStat)
     {
         String policy = "gencon";
         int weight = 0;
@@ -201,7 +179,7 @@ public class GenerateConfig
             weight++;
         }
 
-        if (MetricCollector.maxHeapOverIterations > (Constants.ONE_GB * 4))
+        if (heapStat.getMax() > (Constants.ONE_GB * 4))
         {
             weight++;
         }
@@ -213,55 +191,11 @@ public class GenerateConfig
         return " -Xgcpolicy:" + policy;
     }
 
-    private static void createGraphs(List<String> list, String title, String xAxisTitle, String yAxisTitle,
-                                     DescriptiveStatistics stats, String fileName)
+    private static void copyFromList(List<String> list, DescriptiveStatistics descriptiveStatistics)
     {
-        try
+        for (String value : list)
         {
-            for (String value : list)
-            {
-                stats.addValue(Double.parseDouble(value));
-            }
-        }
-
-        catch (Exception e)
-        {
-            System.err.println("Printing without outliers");
-        }
-
-
-        double[] time = new double[stats.getValues().length];
-
-        time[0] = 0;
-
-        for (int i = 1; i < time.length; i++)
-        {
-            time[i] = Constants.TIME_TO_SLEEP + time[i - 1];
-        }
-
-        try
-        {
-            final XYChart chart =
-                    new XYChartBuilder()
-                            .width(1000)
-                            .height(1000)
-                            .title(title)
-                            .xAxisTitle(xAxisTitle)
-                            .yAxisTitle(yAxisTitle)
-                            .build();
-
-            chart.addSeries("y(x)", time, stats.getValues());
-
-            BitmapEncoder.saveBitmapWithDPI(
-                    chart,
-                    Util.separatorsToSystem(fileName),
-                    BitmapEncoder.BitmapFormat.PNG,
-                    600);
-        }
-
-        catch (Exception e)
-        {
-            System.err.println("IO ERROR: COULD NOT WRITE CHARTS TO FILE.");
+            descriptiveStatistics.addValue(Double.parseDouble(value));
         }
 
     }

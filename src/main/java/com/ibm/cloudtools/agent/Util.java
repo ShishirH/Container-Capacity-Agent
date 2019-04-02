@@ -45,12 +45,8 @@ public class Util
 
     public static double additionalBuffer(double value)
     {
-        value = (value * (ContainerAgent.buffer + 100.0)) / 100.0;
+        value = (value * (InputParams.buffer + 100.0)) / 100.0;
         return value;
     }
 
-    public static double convertToMB(double value)
-    {
-        return value / (1024.0 * 1024.0);
-    }
 }

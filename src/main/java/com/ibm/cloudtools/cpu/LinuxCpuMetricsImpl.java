@@ -25,6 +25,7 @@
 package com.ibm.cloudtools.cpu;
 
 import com.ibm.cloudtools.agent.Constants;
+import com.ibm.cloudtools.agent.MetricCollector;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 import java.io.IOException;
@@ -62,6 +63,10 @@ public class LinuxCpuMetricsImpl extends AbstractCpuMetricsImpl
                 String GOVERNOR_CUR = "/sys/devices/system/cpu/cpu" + i + "/cpufreq/scaling_governor";
                 RandomAccessFile random = new RandomAccessFile(GOVERNOR_CUR, "r");
                 governors[i] = random.readLine();
+
+                if(governors[i].equals("powersave"))
+                    MetricCollector.governorPowersaveFlag = 1;
+
                 random.close();
             }
             catch (IOException e)
@@ -72,6 +77,7 @@ public class LinuxCpuMetricsImpl extends AbstractCpuMetricsImpl
 
         return governors;
     }
+
 
   /*
       Records cpufrequency of all cores by reading from the system for that instance of time

@@ -26,55 +26,43 @@ package com.ibm.cloudtools.agent;
 
 import com.amihaiemil.eoyaml.YamlMapping;
 import com.cedarsoftware.util.io.JsonWriter;
-import com.ibm.cloudtools.exportMetrics.Analysis;
 import com.ibm.cloudtools.exportMetrics.GenerateConfig;
-import com.ibm.cloudtools.exportMetrics.RawData;
 import com.ibm.cloudtools.exportMetrics.Summary;
+import com.ibm.cloudtools.memory.MemoryMetricsImpl;
 import com.ibm.cloudtools.system.SystemDump;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
+import org.knowm.xchart.BitmapEncoder;
+import org.knowm.xchart.XYChart;
+import org.knowm.xchart.XYChartBuilder;
 
 import java.io.*;
 import java.lang.instrument.Instrumentation;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-@SuppressWarnings("InfiniteLoopStatement unchecked")
+@SuppressWarnings("InfiniteLoopStatement StatementWithEmptyBody")
 public class ContainerAgent extends Thread
 {
-    public static double cpuTargetMultiplier;
-    static long buffer;
-    public static int config;
-    public static int governorPowersaveFlag = 0;
-    public static String comments;
     public static int NO_OF_VALUES_CURRENT = 0;
-    public static int NO_OF_ITERATIONS = 0;
+    private static int NO_OF_ITERATIONS = 0;
 
     public MetricCollector metricCollector;
-    private JSONObject monitorObject;
-    private JSONObject analysisObject;
     private JSONObject summaryObject;
-    public static DescriptiveStatistics resValues = new DescriptiveStatistics();
-    public static DescriptiveStatistics heapValues = new DescriptiveStatistics();
-    public static DescriptiveStatistics nativeValues = new DescriptiveStatistics();
+
+    private static DescriptiveStatistics chartResidentStat = new DescriptiveStatistics();
+    private static DescriptiveStatistics chartHeapUsedStat = new DescriptiveStatistics();
+    private static DescriptiveStatistics chartNativeUsedStat = new DescriptiveStatistics();
+    private static DescriptiveStatistics chartCpuLoadStat = new DescriptiveStatistics();
+
+    private static final AtomicBoolean isAgentFinished = new AtomicBoolean(false);
+    public static final AtomicBoolean isProgramRunning = new AtomicBoolean(true);
 
     private ContainerAgent()
     {
         /* creating directories */
         if (!createDirs()) return;
-
-        try
-        {
-            PrintStream printStream =
-                    new PrintStream(new FileOutputStream(Util.separatorsToSystem("Output/dump.txt"), true));
-            System.setErr(printStream);
-        }
-        catch (FileNotFoundException e)
-        {
-            System.err.println("File was not found");
-        }
 
         SystemDump.printSystemLog();
     }
@@ -83,9 +71,9 @@ public class ContainerAgent extends Thread
     {
         try
         {
-            readInputJSON(args);
-
-            final ContainerAgent containerAgent = new ContainerAgent();
+            InputParams.readInputJSON(args);
+            ContainerAgent containerAgent = new ContainerAgent();
+            containerAgent.setDaemon(true);
             addShutdownHook(containerAgent);
             containerAgent.start();
         }
@@ -95,123 +83,40 @@ public class ContainerAgent extends Thread
         }
     }
 
-    private static void readInputJSON(String args) throws IOException, ParseException
-    {
-        JSONObject inputObject = (JSONObject) new JSONParser().parse(new FileReader(args));
-        final String configuration = (String) inputObject.get("config");
-
-        GenerateConfig.name =
-                inputObject.containsKey("name") ? (String) inputObject.get("name") : "java";
-
-        GenerateConfig.apiVersion =
-                inputObject.containsKey("apiVersion") ? (String) inputObject.get("apiVersion") : "v1";
-
-        ContainerAgent.buffer =
-                inputObject.containsKey("buffer") ? (Long) inputObject.get("buffer") : 10;
-
-        ContainerAgent.cpuTargetMultiplier = (Double) inputObject.get("cpuTargetMultiplier");
-
-        /*TODO Look at what ideal values for the differnet configurations would be*/
-        ContainerAgent.config = (configuration.equals("perf")) ? 0 : 1;
-    }
-
     private static void getMetrics(ContainerAgent containerAgent)
     {
-        while (true)
+        while (isProgramRunning.get())
         {
-            containerAgent.monitorObject = new JSONObject();
-            containerAgent.analysisObject = new JSONObject();
             containerAgent.summaryObject = new JSONObject();
 
             containerAgent.metricCollector = new MetricCollector();
-            containerAgent.metricCollector.memoryMetrics.getMemoryMetrics(containerAgent.metricCollector);
+            containerAgent.metricCollector.memoryMetrics.getMetrics(containerAgent.metricCollector);
 
-            System.err.println("Resident size: " + SystemDump.getResidentSize() / (1024 * 1024)
-                    + "\tHeap used max: " + containerAgent.metricCollector.heapStat[1].getMax()
-                    + "\tNative used max: " + containerAgent.metricCollector.nativeStat[1].getMax());
-
-            System.err.println("Heap committed max: " + containerAgent.metricCollector.heapStat[0].getMax()
-                    + "\tNative committed max: " + containerAgent.metricCollector.nativeStat[0].getMax());
-
-            System.err.println("-------------------------------------------------------------------------------------");
-            System.err.println();
-
-            MetricCollector.heapSumValues += containerAgent.metricCollector.getHeapStat()[0].getMean();
-            MetricCollector.nativeSumValues += containerAgent.metricCollector.getNativeStat()[0].getMean();
-            MetricCollector.chartResidentStat.addValue(Util.convertToMB(containerAgent.metricCollector.getResidentMemoryStat().getPercentile(50)));
-
-            PrintStream resValueStream;
-            PrintStream heapValueStream;
-            PrintStream nativeValueStream;
-            try
+            if(InputParams.enableDiagnostics == 1)
             {
-                resValueStream = new PrintStream(new FileOutputStream(Util.separatorsToSystem("Output/resValues.txt") , true));
-                heapValueStream = new PrintStream(new FileOutputStream(Util.separatorsToSystem("Output/heapValues.txt") , true));
-                nativeValueStream = new PrintStream(new FileOutputStream(Util.separatorsToSystem("Output/nativeValues.txt") , true));
-            }
-            catch (FileNotFoundException e)
-            {
-                System.err.println("COULD NOT CREATE FILE!");
-                ContainerAgent.NO_OF_VALUES_CURRENT = 0;
-                ContainerAgent.NO_OF_ITERATIONS++;
-                continue;
+                createSummaryJSON(containerAgent);
             }
 
-            for(double resValue : ContainerAgent.resValues.getValues())
-            {
-                resValueStream.println(resValue);
-            }
+            //Saving the median values of the iteration for graph generation in the end.
+            chartResidentStat.addValue((containerAgent.metricCollector.residentMemoryStat.getPercentile(50)) / Constants.ONE_MB);
+            chartHeapUsedStat.addValue((containerAgent.metricCollector.heapStat[1].getPercentile(50)) / Constants.ONE_MB);
+            chartNativeUsedStat.addValue((containerAgent.metricCollector.nativeStat[1].getPercentile(50)) / Constants.ONE_MB);
+            chartCpuLoadStat.addValue(containerAgent.metricCollector.cpuMetricsImpl.loadStat.getPercentile(50));
 
-            for(double heapValue : ContainerAgent.heapValues.getValues())
-            {
-                heapValueStream.println(heapValue);
-            }
+            dumpValues("Output/resValues.txt", MemoryMetricsImpl.resValues.getValues());
+            dumpValues("Output/heapUsedValues.txt", MemoryMetricsImpl.heapUsedValues.getValues());
+            dumpValues("Output/nativeUsedValues.txt", MemoryMetricsImpl.nativeUsedValues.getValues());
+            dumpValues("Output/cpuLoad.txt", containerAgent.metricCollector.cpuMetricsImpl.loadStat.getValues());
 
-            for(double nativeValue : ContainerAgent.nativeValues.getValues())
-            {
-                nativeValueStream.println(nativeValue);
-            }
-
-            resValueStream.flush();
-            resValueStream.close();
-
-            heapValueStream.flush();
-            heapValueStream.close();
-
-            nativeValueStream.flush();
-            nativeValueStream.close();
-
-            ContainerAgent.resValues = new DescriptiveStatistics();
-            ContainerAgent.nativeValues = new DescriptiveStatistics();
-            ContainerAgent.heapValues = new DescriptiveStatistics();
+            MemoryMetricsImpl.resValues = new DescriptiveStatistics();
+            MemoryMetricsImpl.nativeUsedValues = new DescriptiveStatistics();
+            MemoryMetricsImpl.heapUsedValues = new DescriptiveStatistics();
 
             ContainerAgent.NO_OF_VALUES_CURRENT = 0;
             ContainerAgent.NO_OF_ITERATIONS++;
-
         }
-    }
+        isAgentFinished.set(true);
 
-    private static void exportJSONs(ContainerAgent containerAgent)
-    {
-        /* creating JSON file that contains raw data */
-        createRawJSON(containerAgent);
-        printToFile(
-                Util.separatorsToSystem("Output/JSONs/RawData") + NO_OF_ITERATIONS + ".json",
-                JsonWriter.formatJson(containerAgent.monitorObject.toJSONString()));
-
-        /* creating JSON file that contains statistical data */
-        createAnalysisJSON(containerAgent);
-        printToFile(
-                Util.separatorsToSystem("Output/JSONs/Analysis") + NO_OF_ITERATIONS + ".json",
-                JsonWriter.formatJson(containerAgent.analysisObject.toJSONString()));
-
-        /* cherry picked important data needed to make resource calculations */
-        createSummaryJSON(containerAgent);
-        printToFile(
-                Util.separatorsToSystem("Output/JSONs/Summary") + NO_OF_ITERATIONS + ".json",
-                JsonWriter.formatJson(containerAgent.summaryObject.toJSONString()));
-
-        System.out.println("EXPORTED DETAILS: " + ContainerAgent.NO_OF_ITERATIONS);
     }
 
     private static void generateYamlFile()
@@ -220,7 +125,29 @@ public class ContainerAgent extends Thread
         YamlMapping yamlMapping = GenerateConfig.createYamlConfig();
         printToFile(
                 Util.separatorsToSystem("Output/configuration.yml"),
-                ContainerAgent.comments + yamlMapping.toString());
+                GenerateConfig.comments + yamlMapping.toString());
+    }
+
+    private static void dumpValues(String filename, double[] values)
+    {
+        PrintStream printStream;
+        try
+        {
+            printStream = new PrintStream(new FileOutputStream(Util.separatorsToSystem(filename), true));
+
+            for(double value : values)
+            {
+                printStream.println(value);
+            }
+
+            printStream.flush();
+            printStream.close();
+        }
+
+        catch (FileNotFoundException e)
+        {
+            System.err.println("COULD NOT DUMP VALUES: FILE NOT FOUND EXCEPTION");
+        }
     }
 
     private static void printToFile(String fileName, String content)
@@ -245,23 +172,11 @@ public class ContainerAgent extends Thread
     {
         Summary.getSummaryCPU(containerAgent.summaryObject, containerAgent);
         Summary.getSummaryMemory(containerAgent.summaryObject, containerAgent);
-    }
 
-    private static void createAnalysisJSON(ContainerAgent containerAgent)
-    {
-        JSONObject memoryAnalysisObject = new JSONObject();
-        JSONObject cpuAnalysisObject = new JSONObject();
-        Analysis.analyzeMemory(memoryAnalysisObject, containerAgent.metricCollector);
-        Analysis.analyzeCPU(cpuAnalysisObject, containerAgent.metricCollector);
-        containerAgent.analysisObject.put("Memory", memoryAnalysisObject);
-        containerAgent.analysisObject.put("CPU", cpuAnalysisObject);
-    }
+        printToFile(
+                Util.separatorsToSystem("Output/JSONs/Summary") + NO_OF_ITERATIONS + ".json",
+                JsonWriter.formatJson(containerAgent.summaryObject.toJSONString()));
 
-    private static void createRawJSON(ContainerAgent containerAgent)
-    {
-        RawData.addMemoryToMonitor(
-                containerAgent.monitorObject, containerAgent, containerAgent.metricCollector);
-        RawData.addCpuToMonitor(containerAgent.monitorObject, containerAgent);
     }
 
     private static void addShutdownHook(ContainerAgent containerAgent)
@@ -271,28 +186,91 @@ public class ContainerAgent extends Thread
                 .addShutdownHook(
                         new Thread(() ->
                         {
-                            if (NO_OF_VALUES_CURRENT == 0 && NO_OF_ITERATIONS == 0)
-                            {
-                                return;
-                            }
+                            System.err.println("GENERATING CONFIGURATION FILE..");
+                            containerAgent.interrupt();
+                            //Wait until the main thread finishes its execution.
+                            while(isAgentFinished.get());
 
                             generateYamlFile();
-/*
-                            if (NO_OF_VALUES_CURRENT > 0)
+
+                            if(InputParams.enableDiagnostics == 1)
                             {
-                                exportJSONs(containerAgent);
+                                try
+                                {
+                                    exportGraphs("Resident Memory", "Iteration",
+                                            "Memory", chartResidentStat, "Output/Charts/res");
+                                    exportGraphs("Heap Used", "Iteration",
+                                            "Memory", chartHeapUsedStat, "Output/Charts/heapUsed");
+                                    exportGraphs("Native Used", "Iteration",
+                                            "Memory", chartNativeUsedStat, "Output/Charts/nativeUsed");
+                                    exportGraphs("CPU Load", "iteration",
+                                            "CpuLoad", chartCpuLoadStat, "Output/Charts/cpuLoad");
+                                }
+                                catch (Exception e)
+                                {
+                                    System.err.println("COULD NOT CREATE GRAPHS");
+                                    e.printStackTrace();
+                                }
                             }
 
-                            try
+                            else
                             {
-                                createCharts();
+                                //delete all the files that were used to generate the configuration.yaml file.
+                                try
+                                {
+                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/resValues.txt")));
+                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/heapUsedValues.txt")));
+                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/nativeUsedValues" +
+                                            ".txt")));
+                                }
+
+                                catch (IOException e)
+                                {
+                                    System.err.println("COULD NOT REMOVE FILES!");
+                                }
+
                             }
-                            catch (Exception e)
-                            {
-                                System.err.println("COULD NOT CREATE GRAPHS");
-                            }
-*/
                         }));
+    }
+
+    private static void exportGraphs(String title, String xAxisTitle, String yAxisTitle,
+                                     DescriptiveStatistics stats, String fileName)
+    {
+
+        double[] time = new double[stats.getValues().length];
+
+        time[0] = 0;
+
+        for (int i = 1; i < time.length; i++)
+        {
+            time[i] = Constants.TIME_TO_SLEEP + time[i - 1];
+        }
+
+        try
+        {
+            final XYChart chart =
+                    new XYChartBuilder()
+                            .width(1000)
+                            .height(1000)
+                            .title(title)
+                            .xAxisTitle(xAxisTitle)
+                            .yAxisTitle(yAxisTitle)
+                            .build();
+
+            chart.addSeries("y(x)", time, stats.getValues());
+
+            BitmapEncoder.saveBitmapWithDPI(
+                    chart,
+                    Util.separatorsToSystem(fileName),
+                    BitmapEncoder.BitmapFormat.PNG,
+                    600);
+        }
+
+        catch (Exception e)
+        {
+            System.err.println("IO ERROR: COULD NOT WRITE CHARTS TO FILE.");
+        }
+
     }
 
     public void run()
@@ -313,7 +291,7 @@ public class ContainerAgent extends Thread
         {
             Files.createDirectories(Paths.get("Output"));
             Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/Charts")));
-            //Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/JSONs")));
+            Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/JSONs")));
         }
         catch (IOException e)
         {

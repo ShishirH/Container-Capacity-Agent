@@ -27,7 +27,6 @@ package com.ibm.cloudtools.memory;
 import com.ibm.cloudtools.agent.Constants;
 import com.ibm.cloudtools.agent.ContainerAgent;
 import com.ibm.cloudtools.agent.MetricCollector;
-import com.ibm.cloudtools.agent.Util;
 import com.ibm.cloudtools.system.SystemDump;
 import com.ibm.java.lang.management.internal.MemoryMXBeanImpl;
 import com.ibm.lang.management.internal.ExtendedOperatingSystemMXBeanImpl;
@@ -39,6 +38,10 @@ import java.util.concurrent.TimeUnit;
 
 public class MemoryMetricsImpl
 {
+    public static DescriptiveStatistics resValues = new DescriptiveStatistics();
+    public static DescriptiveStatistics heapUsedValues = new DescriptiveStatistics();
+    public static DescriptiveStatistics nativeUsedValues = new DescriptiveStatistics();
+
     private void getHeapAndNative(MetricCollector metricCollector, MemoryMXBeanImpl memoryMXBean)
     {
         long heapCommitted = memoryMXBean.getHeapMemoryUsage().getCommitted();
@@ -54,18 +57,8 @@ public class MemoryMetricsImpl
         metricCollector.nativeStat[2].addValue(memoryMXBean.getNonHeapMemoryUsage().getMax());
         metricCollector.nativeStat[3].addValue(memoryMXBean.getNonHeapMemoryUsage().getInit());
 
-        if (MetricCollector.maxNativeOverIterations < Util.convertToMB(nativeCommitted))
-        {
-            MetricCollector.maxNativeOverIterations = Util.convertToMB(nativeCommitted);
-        }
-
-        if (MetricCollector.maxHeapOverIterations < Util.convertToMB(heapCommitted))
-        {
-            MetricCollector.maxHeapOverIterations = Util.convertToMB(heapCommitted);
-        }
-
-        ContainerAgent.heapValues.addValue(memoryMXBean.getHeapMemoryUsage().getUsed());
-        ContainerAgent.nativeValues.addValue(memoryMXBean.getNonHeapMemoryUsage().getUsed());
+        heapUsedValues.addValue(memoryMXBean.getHeapMemoryUsage().getUsed() / (1024.0 * 1024.0));
+        nativeUsedValues.addValue(memoryMXBean.getNonHeapMemoryUsage().getUsed() / (1024.0 * 1024.0));
     }
 
     private void getDivision(
@@ -105,7 +98,7 @@ public class MemoryMetricsImpl
         }
     }
 
-    public void getMemoryMetrics(MetricCollector metricCollector)
+    public void getMetrics(MetricCollector metricCollector)
     {
         MemoryMXBeanImpl memoryMXBean;
         List<MemoryPoolMXBean> memoryPoolMXBeans;
@@ -113,7 +106,7 @@ public class MemoryMetricsImpl
         ExtendedOperatingSystemMXBeanImpl extendedOperatingSystemMXBean =
                 ExtendedOperatingSystemMXBeanImpl.getInstance();
         extendedOperatingSystemMXBean.getProcessCpuLoad();
-
+        
         memoryMXBean = MemoryMXBeanImpl.getInstance();
         memoryPoolMXBeans = memoryMXBean.getMemoryPoolMXBeans(false);
 
@@ -133,7 +126,6 @@ public class MemoryMetricsImpl
         catch (InterruptedException e)
         {
             System.err.println("COULD NOT SLEEP! INTERRUPTED EXCEPTION");
-            e.printStackTrace();
         }
 
         for (int i = 0; i < Constants.MAX_NUMBER_OF_VALUES; i++)
@@ -144,11 +136,6 @@ public class MemoryMetricsImpl
 
             double cpuLoad = extendedOperatingSystemMXBean.getProcessCpuLoad() * Constants.NO_OF_CORES;
             metricCollector.cpuMetricsImpl.loadStat.addValue(cpuLoad);
-            MetricCollector.cpuLoadValues += cpuLoad;
-            if (MetricCollector.maxCpuLoadOverIterations < cpuLoad)
-            {
-                MetricCollector.maxCpuLoadOverIterations = cpuLoad;
-            }
 
             getDivision(metricCollector, memoryPoolMXBeans);
             getHeapAndNative(metricCollector, memoryMXBean);
@@ -156,13 +143,6 @@ public class MemoryMetricsImpl
 
             long processPhysicalMemorySize = SystemDump.getResidentSize();
             metricCollector.residentMemoryStat.addValue(processPhysicalMemorySize);
-            MetricCollector.residentSumValues += processPhysicalMemorySize / (1024.0 * 1024.0);
-
-            if (MetricCollector.maxResidentOverIterations
-                    < (processPhysicalMemorySize / (1024.0 * 1024.0)))
-            {
-                MetricCollector.maxResidentOverIterations = (processPhysicalMemorySize / (1024.0 * 1024.0));
-            }
 
             metricCollector.cpuMetricsImpl.getCpuCurrentFrequency();
 
@@ -170,9 +150,10 @@ public class MemoryMetricsImpl
             {
                 TimeUnit.SECONDS.sleep(Constants.TIME_TO_SLEEP);
             }
-            catch (InterruptedException e)
+            catch (InterruptedException interruptedException)
             {
-                e.printStackTrace();
+                ContainerAgent.isProgramRunning.set(false);
+                return;
             }
         }
     }

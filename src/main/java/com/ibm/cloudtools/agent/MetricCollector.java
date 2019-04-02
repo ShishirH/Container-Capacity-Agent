@@ -42,49 +42,36 @@ import java.util.List;
 
 public class MetricCollector
 {
-    /* Used for the overall mean */
-    public static double heapSumValues = 0;
-    public static double nativeSumValues = 0;
-    public static double residentSumValues = 0;
-    public static double cpuLoadValues = 0;
 
-    /* Maximum over all iterations */
-    public static double maxCpuLoadOverIterations = 0;
-    public static double maxHeapOverIterations = 0;
-    public static double maxNativeOverIterations = 0;
-    public static double maxResidentOverIterations = 0;
-
-    public static DescriptiveStatistics chartCpuLoadStat = new DescriptiveStatistics();
-    public static DescriptiveStatistics chartResidentStat = new DescriptiveStatistics();
     public static int nurseryAllocatedIndex = -1;
     public static int nurserySurvivorIndex = -1;
     public static int tenuredSOAIndex = -1;
     public static int tenuredLOAIndex = -1;
+
     public static double nurseryAllocatedMax = -1;
     public static double nurserySurvivorMax = -1;
     public static double tenuredSOAMax = -1;
     public static double tenuredLOAMax = -1;
 
+    public static int governorPowersaveFlag = 0;
+
     public AbstractCpuMetricsImpl cpuMetricsImpl = AbstractCpuMetricsImpl.getCpuMetrics();
     MemoryMetricsImpl memoryMetrics;
 
-    public final int hyperThreadingInfo = cpuMetricsImpl.getHyperthreadingInfo();
-    public String[] cpuGovernors = cpuMetricsImpl.getCpuGovernors();
-    public String cpuModel = cpuMetricsImpl.getCpuModels();
+    private int memTypesLength = Constants.MEM_TYPES.length;
     public DescriptiveStatistics residentMemoryStat = new DescriptiveStatistics();
-
-    private MemoryMXBeanImpl memoryMXBean = MemoryMXBeanImpl.getInstance();
-    private List<MemoryPoolMXBean> memoryPoolMXBeans = memoryMXBean.getMemoryPoolMXBeans(false);
-    public String[] memDivisionNames = new String[memoryPoolMXBeans.size()];
-    private int memTypesLength = Constants.MEM_TYPE_LENGTH;
-    public DescriptiveStatistics[][] memDivisions =
-            new DescriptiveStatistics[memTypesLength][memDivisionNames.length];
     public DescriptiveStatistics[] heapStat = new DescriptiveStatistics[memTypesLength];
     public DescriptiveStatistics[] nativeStat = new DescriptiveStatistics[memTypesLength];
 
+    private MemoryMXBeanImpl memoryMXBean = MemoryMXBeanImpl.getInstance();
+    private List<MemoryPoolMXBean> memoryPoolMXBeans = memoryMXBean.getMemoryPoolMXBeans(false);
+    private String[] memDivisionNames = new String[memoryPoolMXBeans.size()];
+    public DescriptiveStatistics[][] memDivisions =
+            new DescriptiveStatistics[memTypesLength][memDivisionNames.length];
+
     MetricCollector()
     {
-        for (int i = 0; i < Constants.MEM_TYPE_LENGTH; i++)
+        for (int i = 0; i < Constants.MEM_TYPES.length; i++)
         {
             heapStat[i] = new DescriptiveStatistics();
             nativeStat[i] = new DescriptiveStatistics();
@@ -103,25 +90,5 @@ public class MetricCollector
         }
 
         memoryMetrics = new MemoryMetricsImpl();
-    }
-
-    public DescriptiveStatistics[][] getMemDivisions()
-    {
-        return memDivisions;
-    }
-
-    public DescriptiveStatistics[] getHeapStat()
-    {
-        return heapStat;
-    }
-
-    public DescriptiveStatistics[] getNativeStat()
-    {
-        return nativeStat;
-    }
-
-    public DescriptiveStatistics getResidentMemoryStat()
-    {
-        return residentMemoryStat;
     }
 }

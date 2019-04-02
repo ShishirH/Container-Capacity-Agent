@@ -30,6 +30,8 @@ import com.ibm.cloudtools.agent.Util;
 import org.json.simple.JSONObject;
 import oshi.util.FormatUtil;
 
+import java.util.Arrays;
+
 @SuppressWarnings("unchecked")
 public class Summary
 {
@@ -41,9 +43,9 @@ public class Summary
         JSONObject memoryObject = new JSONObject();
 
         double maxResidentMem =
-                Util.additionalBuffer(containerAgent.metricCollector.getResidentMemoryStat().getMax());
+                Util.additionalBuffer(containerAgent.metricCollector.residentMemoryStat.getMax());
         double meanResidentMem =
-                Util.additionalBuffer(containerAgent.metricCollector.getResidentMemoryStat().getMean());
+                Util.additionalBuffer(containerAgent.metricCollector.residentMemoryStat.getMean());
 
         double maxHeap = Util.additionalBuffer(containerAgent.metricCollector.heapStat[0].getMax());
         double meanHeap = Util.additionalBuffer(containerAgent.metricCollector.heapStat[0].getMean());
@@ -81,6 +83,19 @@ public class Summary
         cpuObject.put(
                 "Load",
                 Util.additionalBuffer(containerAgent.metricCollector.cpuMetricsImpl.getCpuLoad().getMax()));
+
+        cpuObject.put(
+                "Hyperthreading",
+                containerAgent.metricCollector.cpuMetricsImpl.getHyperthreadingInfo());
+
+        cpuObject.put(
+                "Governors",
+                Arrays.toString(containerAgent.metricCollector.cpuMetricsImpl.getCpuGovernors()));
+
+        cpuObject.put(
+                "Model",
+                containerAgent.metricCollector.cpuMetricsImpl.getCpuModel());
+
         summaryObject.put("CPU", cpuObject);
     }
 }

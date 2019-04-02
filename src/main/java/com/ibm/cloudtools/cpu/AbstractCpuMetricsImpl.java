@@ -25,6 +25,7 @@
 package com.ibm.cloudtools.cpu;
 
 import com.ibm.cloudtools.agent.Constants;
+import com.ibm.cloudtools.agent.MetricCollector;
 import com.ibm.cloudtools.system.SystemDump;
 import com.sun.jna.Platform;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
@@ -62,7 +63,7 @@ public class AbstractCpuMetricsImpl implements CpuMetrics
                 : 0;
     }
 
-    public String getCpuModels()
+    public String getCpuModel()
     {
         return SystemDump.centralProcessor.toString();
     }
@@ -77,6 +78,8 @@ public class AbstractCpuMetricsImpl implements CpuMetrics
 
         }
 
+        MetricCollector.governorPowersaveFlag = 0;
+
         return governors;
     }
 
@@ -84,6 +87,7 @@ public class AbstractCpuMetricsImpl implements CpuMetrics
     {
         return new DescriptiveStatistics[Constants.NO_OF_CORES];
     }
+
 
 
 

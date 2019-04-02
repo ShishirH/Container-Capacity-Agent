@@ -25,6 +25,9 @@
 package com.ibm.cloudtools.system;
 
 import com.ibm.cloudtools.agent.ContainerAgent;
+import com.ibm.cloudtools.agent.Util;
+import com.ibm.cloudtools.exportMetrics.GenerateConfig;
+import com.ibm.cloudtools.memory.MemoryMetricsImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import oshi.SystemInfo;
@@ -35,6 +38,7 @@ import oshi.software.os.OSProcess;
 import oshi.software.os.OperatingSystem;
 import oshi.util.FormatUtil;
 
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
@@ -48,7 +52,8 @@ public class SystemDump
     public static void printSystemLog()
     {
         System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "INFO");
-        System.setProperty(org.slf4j.impl.SimpleLogger.LOG_FILE_KEY, "System.err");
+        System.setProperty(org.slf4j.impl.SimpleLogger.LOG_FILE_KEY,
+                Paths.get(Util.separatorsToSystem("Output/dump.txt")).toString());
         Logger LOG = LoggerFactory.getLogger(ContainerAgent.class);
 
         LOG.info("Computer System:");
@@ -142,7 +147,7 @@ public class SystemDump
                         + FormatUtil.formatBytes(memory.getSwapTotal()));
         if (memory.getSwapUsed() > 0)
         {
-            ContainerAgent.comments += "#WARNING: SWAP MEMORY IS USED!";
+            GenerateConfig.comments += "#WARNING: SWAP MEMORY IS USED!";
         }
         LOG.info("\n");
         LOG.info("\n");
@@ -328,7 +333,7 @@ public class SystemDump
     public static long getResidentSize()
     {
         OSProcess osProcess = operatingSystem.getProcess(operatingSystem.getProcessId());
-        ContainerAgent.resValues.addValue(osProcess.getResidentSetSize() / (1024 * 1024));
+        MemoryMetricsImpl.resValues.addValue(osProcess.getResidentSetSize() / (1024.0 * 1024.0));
         return osProcess.getResidentSetSize();
     }
 }
