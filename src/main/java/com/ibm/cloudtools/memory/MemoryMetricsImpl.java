@@ -57,8 +57,8 @@ public class MemoryMetricsImpl
         metricCollector.nativeStat[2].addValue(memoryMXBean.getNonHeapMemoryUsage().getMax());
         metricCollector.nativeStat[3].addValue(memoryMXBean.getNonHeapMemoryUsage().getInit());
 
-        heapUsedValues.addValue(memoryMXBean.getHeapMemoryUsage().getUsed() / (1024.0 * 1024.0));
-        nativeUsedValues.addValue(memoryMXBean.getNonHeapMemoryUsage().getUsed() / (1024.0 * 1024.0));
+        heapUsedValues.addValue(memoryMXBean.getHeapMemoryUsage().getUsed() / Constants.ONE_MB);
+        nativeUsedValues.addValue(memoryMXBean.getNonHeapMemoryUsage().getUsed() / Constants.ONE_MB);
     }
 
     private void getDivision(

@@ -187,6 +187,7 @@ public class ContainerAgent extends Thread
                         new Thread(() ->
                         {
                             System.err.println("GENERATING CONFIGURATION FILE..");
+                            isProgramRunning.set(false);
                             containerAgent.interrupt();
                             //Wait until the main thread finishes its execution.
                             while(isAgentFinished.get());
@@ -222,11 +223,15 @@ public class ContainerAgent extends Thread
                                     Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/heapUsedValues.txt")));
                                     Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/nativeUsedValues" +
                                             ".txt")));
+                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/cpuLoad.txt")));
+                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/JSONs")));
+                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/Charts")));
                                 }
 
                                 catch (IOException e)
                                 {
                                     System.err.println("COULD NOT REMOVE FILES!");
+                                    e.printStackTrace();
                                 }
 
                             }

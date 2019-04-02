@@ -24,6 +24,7 @@
 
 package com.ibm.cloudtools.system;
 
+import com.ibm.cloudtools.agent.Constants;
 import com.ibm.cloudtools.agent.ContainerAgent;
 import com.ibm.cloudtools.agent.Util;
 import com.ibm.cloudtools.exportMetrics.GenerateConfig;
@@ -333,7 +334,7 @@ public class SystemDump
     public static long getResidentSize()
     {
         OSProcess osProcess = operatingSystem.getProcess(operatingSystem.getProcessId());
-        MemoryMetricsImpl.resValues.addValue(osProcess.getResidentSetSize() / (1024.0 * 1024.0));
+        MemoryMetricsImpl.resValues.addValue(osProcess.getResidentSetSize() / Constants.ONE_MB);
         return osProcess.getResidentSetSize();
     }
 }
