@@ -60,7 +60,7 @@ public class InputParams
             cpuTargetMultiplier = (Double) inputObject.get("cpuTargetMultiplier");
 
             /*TODO Look at what ideal values for the differnet configurations would be*/
-            config = (configuration.equals("perf")) ? 0 : 1;
+            config = (configuration.equals("performance")) ? 0 : 1;
 
             enableDiagnostics =
                     inputObject.containsKey("enableDiagnostics") ? (Long) inputObject.get("enableDiagnostics")

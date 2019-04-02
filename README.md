@@ -10,8 +10,35 @@ To build, run the command
 mvn package
 ```
 
+## Input Parameters
+Create an input.json configuration file. A sample is included in the repository.
+```json
+{
+  "config": "performance", 
+  "cpuTargetMultiplier": 1.0,
+  "buffer": 10,
+  "name": "SpringApplication",
+  "apiVersion": "nightly",
+  "enableDiagnostics": 1
+}
+```
+
+config: Can be performance or resourceEfficiency. Performance gives settings for maximum throughput. 
+resourceEfficiency tries to find a nice balance between throughput and resources used. 
+
+cpuTargetMultiplier: If the CPU of the target machine where the container is going to run is different than the CPU on which the test is
+curently running, you can scale the CPU metrics used if the ratio of performance of the CPUs is known.
+
+buffer: The additional buffer on top of the calculated values during the run.
+
+name: Name of the application
+
+apiVersion: The version of the application.
+
+enableDiagnostics: If you want to look at the data collected throughout the run, pass 1.
+
 ## Usage
-Copy the jar file with dependencies in target folder to your application, and run the application normally, with the tool as a javaagent. Make sure sufficient stress is provided to the application, either by simulating real world scenarios through a test suite.
+Copy the jar file with dependencies in the target folder of the tool and run the application normally, with the tool as a javaagent. Make sure sufficient stress is provided to the application, either by simulating real world scenarios through a test suite.
 
 To run, use
 ```bash
