@@ -187,6 +187,7 @@ public class ContainerAgent extends Thread
                         new Thread(() ->
                         {
                             System.err.println("GENERATING CONFIGURATION FILE..");
+                            isProgramRunning.set(false);
                             containerAgent.interrupt();
                             //Wait until the main thread finishes its execution.
                             while(isAgentFinished.get());
