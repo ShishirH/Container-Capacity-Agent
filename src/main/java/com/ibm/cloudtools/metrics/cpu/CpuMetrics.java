@@ -12,21 +12,17 @@
  * # limitations under the License.
  */
 
-package com.ibm.cloudtools.agent;
+package com.ibm.cloudtools.metrics.cpu;
 
-public class Constants
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+
+public interface CpuMetrics
 {
-    public static final int MAX_NUMBER_OF_VALUES =
-            60; // Maximum number of samples to be stored before dumping.
-    public static final int NO_OF_CORES =
-            Runtime.getRuntime().availableProcessors(); // No of cores in the system
-    public static final int TIME_TO_SLEEP = 1; // Period between recording values
+    int getHyperthreadingInfo();
 
-    enum MEM_TYPES
-    {
-        Committed, Used, Max, Init
-    }
+    void getCpuCurrentFrequency();
 
-    public static final double ONE_GB = 1073741824.0;
-    public static final double ONE_MB = 1048576.0;
+    String getCpuModel();
+
+    DescriptiveStatistics getCpuLoad();
 }

@@ -1,34 +1,22 @@
 /*
- * ******************************************************************************
- *  * Copyright (c) 2012, 2019 IBM Corp. and others
- *  *
- *  * This program and the accompanying materials are made available under
- *  * the terms of the Eclipse Public License 2.0 which accompanies this
- *  * distribution and is available at https://www.eclipse.org/legal/epl-2.0/
- *  * or the Apache License, Version 2.0 which accompanies this distribution and
- *  * is available at https://www.apache.org/licenses/LICENSE-2.0.
- *  *
- *  * This Source Code may also be made available under the following
- *  * Secondary Licenses when the conditions for such availability set
- *  * forth in the Eclipse Public License, v. 2.0 are satisfied: GNU
- *  * General Public License, version 2 with the GNU Classpath
- *  * Exception [1] and GNU General Public License, version 2 with the
- *  * OpenJDK Assembly Exception [2].
- *  *
- *  * [1] https://www.gnu.org/software/classpath/license.html
- *  * [2] http://openjdk.java.net/legal/assembly-exception.html
- *  *
- *  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *  ******************************************************************************
+ * # Licensed under the Apache License, Version 2.0 (the "License");
+ * # you may not use this file except in compliance with the License.
+ * # You may obtain a copy of the License at
+ * #
+ * #      https://www.apache.org/licenses/LICENSE-2.0
+ * #
+ * # Unless required by applicable law or agreed to in writing, software
+ * # distributed under the License is distributed on an "AS IS" BASIS,
+ * # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * # See the License for the specific language governing permissions and
+ * # limitations under the License.
  */
 
 package com.ibm.cloudtools.system;
 
-import com.ibm.cloudtools.agent.Constants;
 import com.ibm.cloudtools.agent.ContainerAgent;
 import com.ibm.cloudtools.agent.Util;
 import com.ibm.cloudtools.exportMetrics.GenerateConfig;
-import com.ibm.cloudtools.memory.MemoryMetricsImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import oshi.SystemInfo;
@@ -43,17 +31,16 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
-public class SystemDump
-{
+public class SystemDump {
     private static SystemInfo systemInfo = new SystemInfo();
     public static HardwareAbstractionLayer hardwareAbstractionLayer = systemInfo.getHardware();
     public static CentralProcessor centralProcessor = hardwareAbstractionLayer.getProcessor();
     private static OperatingSystem operatingSystem = systemInfo.getOperatingSystem();
 
-    public static void printSystemLog()
-    {
+    public static void printSystemLog() {
         System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "INFO");
-        System.setProperty(org.slf4j.impl.SimpleLogger.LOG_FILE_KEY,
+        System.setProperty(
+                org.slf4j.impl.SimpleLogger.LOG_FILE_KEY,
                 Paths.get(Util.separatorsToSystem("Output/dump.txt")).toString());
         Logger LOG = LoggerFactory.getLogger(ContainerAgent.class);
 
@@ -93,8 +80,7 @@ public class SystemDump
         printUsbDevices(hardwareAbstractionLayer.getUsbDevices(true), LOG);
     }
 
-    private static void printComputerSystem(final ComputerSystem computerSystem, Logger LOG)
-    {
+    private static void printComputerSystem(final ComputerSystem computerSystem, Logger LOG) {
 
         LOG.info("manufacturer: " + computerSystem.getManufacturer());
         LOG.info("model: " + computerSystem.getModel());
@@ -121,8 +107,7 @@ public class SystemDump
         LOG.info("\n");
     }
 
-    private static void printProcessor(CentralProcessor processor, Logger LOG)
-    {
+    private static void printProcessor(CentralProcessor processor, Logger LOG) {
         LOG.info(processor.toString());
         LOG.info(" " + processor.getPhysicalPackageCount() + " physical CPU package(s)");
         LOG.info(" " + processor.getPhysicalProcessorCount() + " physical CPU core(s)");
@@ -134,8 +119,7 @@ public class SystemDump
         LOG.info("\n");
     }
 
-    private static void printMemory(GlobalMemory memory, Logger LOG)
-    {
+    private static void printMemory(GlobalMemory memory, Logger LOG) {
         LOG.info(
                 "Memory Available: "
                         + FormatUtil.formatBytes(memory.getAvailable())
@@ -146,8 +130,7 @@ public class SystemDump
                         + FormatUtil.formatBytes(memory.getSwapUsed())
                         + "/"
                         + FormatUtil.formatBytes(memory.getSwapTotal()));
-        if (memory.getSwapUsed() > 0)
-        {
+        if (memory.getSwapUsed() > 0) {
             GenerateConfig.comments += "#WARNING: SWAP MEMORY IS USED!";
         }
         LOG.info("\n");
@@ -155,23 +138,19 @@ public class SystemDump
         LOG.info("\n");
     }
 
-    private static void printCpu(CentralProcessor processor, Logger LOG)
-    {
+    private static void printCpu(CentralProcessor processor, Logger LOG) {
         long[][] prevProcTicks = processor.getProcessorCpuLoadTicks();
         LOG.info(String.format("%nCPU LOAD TICKS: "));
-        for (long[] procTicks : prevProcTicks)
-        {
+        for (long[] procTicks : prevProcTicks) {
             LOG.info(Arrays.toString(procTicks));
         }
         long freq = processor.getVendorFreq();
-        if (freq > 0)
-        {
+        if (freq > 0) {
             LOG.info("Vendor Frequency: " + FormatUtil.formatHertz(freq));
         }
     }
 
-    private static void printProcesses(OperatingSystem os, GlobalMemory memory, Logger LOG)
-    {
+    private static void printProcesses(OperatingSystem os, GlobalMemory memory, Logger LOG) {
         LOG.info(
                 String.format(
                         "Processes: " + os.getProcessCount() + ", Threads: " + os.getThreadCount() + "%n"));
@@ -179,8 +158,7 @@ public class SystemDump
         List<OSProcess> procs = Arrays.asList(os.getProcesses(5, OperatingSystem.ProcessSort.CPU));
 
         LOG.info("   PID  %CPU %MEM       VSZ       RSS Name");
-        for (int i = 0; i < procs.size() && i < 5; i++)
-        {
+        for (int i = 0; i < procs.size() && i < 5; i++) {
             OSProcess p = procs.get(i);
             LOG.info(
                     String.format(
@@ -194,11 +172,9 @@ public class SystemDump
         }
     }
 
-    private static void printDisks(HWDiskStore[] diskStores, Logger LOG)
-    {
+    private static void printDisks(HWDiskStore[] diskStores, Logger LOG) {
         LOG.info(String.format("Disks:%n"));
-        for (HWDiskStore disk : diskStores)
-        {
+        for (HWDiskStore disk : diskStores) {
             boolean readwrite = disk.getReads() > 0 || disk.getWrites() > 0;
             LOG.info(
                     String.format(
@@ -214,12 +190,10 @@ public class SystemDump
                             readwrite ? FormatUtil.formatBytes(disk.getWriteBytes()) : "?",
                             readwrite ? disk.getTransferTime() : "?"));
             HWPartition[] partitions = disk.getPartitions();
-            if (partitions == null)
-            {
+            if (partitions == null) {
                 continue;
             }
-            for (HWPartition part : partitions)
-            {
+            for (HWPartition part : partitions) {
                 LOG.info(
                         String.format(
                                 " |-- %s: %s (%s) Maj:Min=%d:%d, size: %s%s%n",
@@ -234,8 +208,7 @@ public class SystemDump
         }
     }
 
-    private static void printFileSystem(oshi.software.os.FileSystem fileSystem, Logger LOG)
-    {
+    private static void printFileSystem(oshi.software.os.FileSystem fileSystem, Logger LOG) {
         LOG.info(String.format("File System:%n"));
         LOG.info(
                 String.format(
@@ -243,8 +216,7 @@ public class SystemDump
                         fileSystem.getOpenFileDescriptors(), fileSystem.getMaxFileDescriptors()));
 
         OSFileStore[] fsArray = fileSystem.getFileStores();
-        for (OSFileStore fs : fsArray)
-        {
+        for (OSFileStore fs : fsArray) {
             long usable = fs.getUsableSpace();
             long total = fs.getTotalSpace();
 
@@ -270,11 +242,9 @@ public class SystemDump
         }
     }
 
-    private static void printNetworkInterfaces(NetworkIF[] networkIFs, Logger LOG)
-    {
+    private static void printNetworkInterfaces(NetworkIF[] networkIFs, Logger LOG) {
         LOG.info(String.format("Network interfaces:%n"));
-        for (NetworkIF net : networkIFs)
-        {
+        for (NetworkIF net : networkIFs) {
             LOG.info(String.format(" Name: %s (%s)%n", net.getName(), net.getDisplayName()));
             LOG.info(String.format("   MAC Address: %s %n", net.getMacaddr()));
             LOG.info(
@@ -300,8 +270,7 @@ public class SystemDump
         }
     }
 
-    private static void printNetworkParameters(NetworkParams networkParams, Logger LOG)
-    {
+    private static void printNetworkParameters(NetworkParams networkParams, Logger LOG) {
         LOG.info("Network parameters:");
         LOG.info(String.format(" Host name: %s%n", networkParams.getHostName()));
         LOG.info(String.format(" Domain name: %s%n", networkParams.getDomainName()));
@@ -310,31 +279,25 @@ public class SystemDump
         LOG.info(String.format(" IPv6 Gateway: %s%n", networkParams.getIpv6DefaultGateway()));
     }
 
-    private static void printDisplays(Display[] displays, Logger LOG)
-    {
+    private static void printDisplays(Display[] displays, Logger LOG) {
         LOG.info("Displays:");
         int i = 0;
-        for (Display display : displays)
-        {
+        for (Display display : displays) {
             LOG.info(" Display " + i + ":");
             LOG.info(display.toString());
             i++;
         }
     }
 
-    private static void printUsbDevices(UsbDevice[] usbDevices, Logger LOG)
-    {
+    private static void printUsbDevices(UsbDevice[] usbDevices, Logger LOG) {
         LOG.info("USB Devices:");
-        for (UsbDevice usbDevice : usbDevices)
-        {
+        for (UsbDevice usbDevice : usbDevices) {
             LOG.info(usbDevice.toString());
         }
     }
 
-    public static long getResidentSize()
-    {
+    public static long getResidentSize() {
         OSProcess osProcess = operatingSystem.getProcess(operatingSystem.getProcessId());
-        MemoryMetricsImpl.resValues.addValue(osProcess.getResidentSetSize() / Constants.ONE_MB);
         return osProcess.getResidentSetSize();
     }
 }

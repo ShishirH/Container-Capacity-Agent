@@ -3,6 +3,6 @@
   "cpuTargetMultiplier": 1.0,
   "buffer": 10,
   "name": "SpringApplication",
-  "apiVersion": "nightly",
+  "apiVersion": "v1",
   "enableDiagnostics": 1
 }

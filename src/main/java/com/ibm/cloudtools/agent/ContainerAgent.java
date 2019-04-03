@@ -1,25 +1,15 @@
 /*
- * ******************************************************************************
- *  * Copyright (c) 2012, 2019 IBM Corp. and others
- *  *
- *  * This program and the accompanying materials are made available under
- *  * the terms of the Eclipse Public License 2.0 which accompanies this
- *  * distribution and is available at https://www.eclipse.org/legal/epl-2.0/
- *  * or the Apache License, Version 2.0 which accompanies this distribution and
- *  * is available at https://www.apache.org/licenses/LICENSE-2.0.
- *  *
- *  * This Source Code may also be made available under the following
- *  * Secondary Licenses when the conditions for such availability set
- *  * forth in the Eclipse Public License, v. 2.0 are satisfied: GNU
- *  * General Public License, version 2 with the GNU Classpath
- *  * Exception [1] and GNU General Public License, version 2 with the
- *  * OpenJDK Assembly Exception [2].
- *  *
- *  * [1] https://www.gnu.org/software/classpath/license.html
- *  * [2] http://openjdk.java.net/legal/assembly-exception.html
- *  *
- *  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *  ******************************************************************************
+ * # Licensed under the Apache License, Version 2.0 (the "License");
+ * # you may not use this file except in compliance with the License.
+ * # You may obtain a copy of the License at
+ * #
+ * #      https://www.apache.org/licenses/LICENSE-2.0
+ * #
+ * # Unless required by applicable law or agreed to in writing, software
+ * # distributed under the License is distributed on an "AS IS" BASIS,
+ * # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * # See the License for the specific language governing permissions and
+ * # limitations under the License.
  */
 
 package com.ibm.cloudtools.agent;
@@ -28,7 +18,6 @@ import com.amihaiemil.eoyaml.YamlMapping;
 import com.cedarsoftware.util.io.JsonWriter;
 import com.ibm.cloudtools.exportMetrics.GenerateConfig;
 import com.ibm.cloudtools.exportMetrics.Summary;
-import com.ibm.cloudtools.memory.MemoryMetricsImpl;
 import com.ibm.cloudtools.system.SystemDump;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.json.simple.JSONObject;
@@ -43,19 +32,25 @@ import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @SuppressWarnings("InfiniteLoopStatement StatementWithEmptyBody")
+/*
+ * Main class of the tool. Collects metrics through CpuMetricsImpl and MemoryMetricsImpl
+ * from com.ibm.cloudtools.metrics package, stores them in MetricCollector.java class,
+ * and once the main program completes executing, exports the metrics.
+ */
 public class ContainerAgent extends Thread
 {
-    public static int NO_OF_VALUES_CURRENT = 0;
     private static int NO_OF_ITERATIONS = 0;
 
     public MetricCollector metricCollector;
     private JSONObject summaryObject;
 
+    /* Objects used for generating charts if enableDiagnostics is 1 in the input.json file. */
     private static DescriptiveStatistics chartResidentStat = new DescriptiveStatistics();
     private static DescriptiveStatistics chartHeapUsedStat = new DescriptiveStatistics();
     private static DescriptiveStatistics chartNativeUsedStat = new DescriptiveStatistics();
     private static DescriptiveStatistics chartCpuLoadStat = new DescriptiveStatistics();
 
+    /* Used for concurrency */
     private static final AtomicBoolean isAgentFinished = new AtomicBoolean(false);
     public static final AtomicBoolean isProgramRunning = new AtomicBoolean(true);
 
@@ -64,59 +59,55 @@ public class ContainerAgent extends Thread
         /* creating directories */
         if (!createDirs()) return;
 
+        /* print the state of the system */
         SystemDump.printSystemLog();
     }
 
     public static void premain(String args, Instrumentation instrumentation)
     {
-        try
-        {
+        try {
+            /* read the input parameters from the input.json file */
             InputParams.readInputJSON(args);
             ContainerAgent containerAgent = new ContainerAgent();
             containerAgent.setDaemon(true);
             addShutdownHook(containerAgent);
             containerAgent.start();
-        }
-        catch (Exception e)
-        {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private static void getMetrics(ContainerAgent containerAgent)
+    private void getMetrics(ContainerAgent containerAgent)
     {
-        while (isProgramRunning.get())
-        {
+        while (isProgramRunning.get()) {
             containerAgent.summaryObject = new JSONObject();
 
             containerAgent.metricCollector = new MetricCollector();
             containerAgent.metricCollector.memoryMetrics.getMetrics(containerAgent.metricCollector);
 
-            if(InputParams.enableDiagnostics == 1)
-            {
+            if (InputParams.getEnableDiagnostics() == 1) {
                 createSummaryJSON(containerAgent);
             }
 
-            //Saving the median values of the iteration for graph generation in the end.
-            chartResidentStat.addValue((containerAgent.metricCollector.residentMemoryStat.getPercentile(50)) / Constants.ONE_MB);
-            chartHeapUsedStat.addValue((containerAgent.metricCollector.heapStat[1].getPercentile(50)) / Constants.ONE_MB);
-            chartNativeUsedStat.addValue((containerAgent.metricCollector.nativeStat[1].getPercentile(50)) / Constants.ONE_MB);
-            chartCpuLoadStat.addValue(containerAgent.metricCollector.cpuMetricsImpl.loadStat.getPercentile(50));
+            // Saving the median values of the iteration for graph generation in the end.
+            chartResidentStat.addValue(
+                    (containerAgent.metricCollector.residentMemoryStat.getPercentile(50)) / Constants.ONE_MB);
+            chartHeapUsedStat.addValue(
+                    (containerAgent.metricCollector.heapStat[1].getPercentile(50)) / Constants.ONE_MB);
+            chartNativeUsedStat.addValue(
+                    (containerAgent.metricCollector.nativeStat[1].getPercentile(50)) / Constants.ONE_MB);
+            chartCpuLoadStat.addValue(
+                    containerAgent.metricCollector.cpuLoadValues.getPercentile(50));
 
-            dumpValues("Output/resValues.txt", MemoryMetricsImpl.resValues.getValues());
-            dumpValues("Output/heapUsedValues.txt", MemoryMetricsImpl.heapUsedValues.getValues());
-            dumpValues("Output/nativeUsedValues.txt", MemoryMetricsImpl.nativeUsedValues.getValues());
-            dumpValues("Output/cpuLoad.txt", containerAgent.metricCollector.cpuMetricsImpl.loadStat.getValues());
+            dumpValues("Output/Dump/resValues.txt", containerAgent.metricCollector.residentMemoryStat.getValues());
+            dumpValues("Output/Dump/heapCommittedValues.txt", containerAgent.metricCollector.heapStat[1].getValues());
+            dumpValues("Output/Dump/nativeUsedValues.txt", containerAgent.metricCollector.nativeStat[1].getValues());
+            dumpValues(
+                    "Output/Dump/cpuLoad.txt", containerAgent.metricCollector.cpuLoadValues.getValues());
 
-            MemoryMetricsImpl.resValues = new DescriptiveStatistics();
-            MemoryMetricsImpl.nativeUsedValues = new DescriptiveStatistics();
-            MemoryMetricsImpl.heapUsedValues = new DescriptiveStatistics();
-
-            ContainerAgent.NO_OF_VALUES_CURRENT = 0;
             ContainerAgent.NO_OF_ITERATIONS++;
         }
         isAgentFinished.set(true);
-
     }
 
     private static void generateYamlFile()
@@ -128,24 +119,20 @@ public class ContainerAgent extends Thread
                 GenerateConfig.comments + yamlMapping.toString());
     }
 
+    /* Dump existing values of the run to the disk in order to avoid keeping them in memory */
     private static void dumpValues(String filename, double[] values)
     {
         PrintStream printStream;
-        try
-        {
+        try {
             printStream = new PrintStream(new FileOutputStream(Util.separatorsToSystem(filename), true));
 
-            for(double value : values)
-            {
+            for (double value : values) {
                 printStream.println(value);
             }
 
             printStream.flush();
             printStream.close();
-        }
-
-        catch (FileNotFoundException e)
-        {
+        } catch (FileNotFoundException e) {
             System.err.println("COULD NOT DUMP VALUES: FILE NOT FOUND EXCEPTION");
         }
     }
@@ -154,12 +141,9 @@ public class ContainerAgent extends Thread
     {
         File file = new File(fileName);
         PrintWriter printWriter;
-        try
-        {
+        try {
             printWriter = new PrintWriter(file);
-        }
-        catch (FileNotFoundException e)
-        {
+        } catch (FileNotFoundException e) {
             System.err.println("IO EXCEPTION: COULD NOT WRITE TO " + fileName);
             return;
         }
@@ -168,6 +152,7 @@ public class ContainerAgent extends Thread
         printWriter.close();
     }
 
+    /* Summary of the metrics collected in one iteration of the run */
     private static void createSummaryJSON(ContainerAgent containerAgent)
     {
         Summary.getSummaryCPU(containerAgent.summaryObject, containerAgent);
@@ -176,83 +161,89 @@ public class ContainerAgent extends Thread
         printToFile(
                 Util.separatorsToSystem("Output/JSONs/Summary") + NO_OF_ITERATIONS + ".json",
                 JsonWriter.formatJson(containerAgent.summaryObject.toJSONString()));
-
     }
 
     private static void addShutdownHook(ContainerAgent containerAgent)
     {
-        containerAgent.setDaemon(true);
         Runtime.getRuntime()
                 .addShutdownHook(
-                        new Thread(() ->
-                        {
-                            System.err.println("GENERATING CONFIGURATION FILE..");
-                            isProgramRunning.set(false);
-                            containerAgent.interrupt();
-                            //Wait until the main thread finishes its execution.
-                            while(isAgentFinished.get());
+                        new Thread(
+                                () -> {
+                                    System.err.println("GENERATING CONFIGURATION FILE..");
+                                    isProgramRunning.set(false);
+                                    containerAgent.interrupt();
+                                    // Wait until the main thread finishes its execution.
+                                    while (isAgentFinished.get()) ;
 
-                            generateYamlFile();
+                                    generateYamlFile();
 
-                            if(InputParams.enableDiagnostics == 1)
-                            {
-                                try
-                                {
-                                    exportGraphs("Resident Memory", "Iteration",
-                                            "Memory", chartResidentStat, "Output/Charts/res");
-                                    exportGraphs("Heap Used", "Iteration",
-                                            "Memory", chartHeapUsedStat, "Output/Charts/heapUsed");
-                                    exportGraphs("Native Used", "Iteration",
-                                            "Memory", chartNativeUsedStat, "Output/Charts/nativeUsed");
-                                    exportGraphs("CPU Load", "iteration",
-                                            "CpuLoad", chartCpuLoadStat, "Output/Charts/cpuLoad");
-                                }
-                                catch (Exception e)
-                                {
-                                    System.err.println("COULD NOT CREATE GRAPHS");
-                                    e.printStackTrace();
-                                }
-                            }
+                                    if (InputParams.getEnableDiagnostics() == 1) {
+                                        try {
+                                            exportGraphs(
+                                                    "Resident Memory",
+                                                    "Iteration",
+                                                    "Memory",
+                                                    chartResidentStat,
+                                                    "Output/Charts/res");
+                                            exportGraphs(
+                                                    "Heap Used",
+                                                    "Iteration",
+                                                    "Memory",
+                                                    chartHeapUsedStat,
+                                                    "Output/Charts/heapUsed");
+                                            exportGraphs(
+                                                    "Native Used",
+                                                    "Iteration",
+                                                    "Memory",
+                                                    chartNativeUsedStat,
+                                                    "Output/Charts/nativeUsed");
+                                            exportGraphs(
+                                                    "CPU Load",
+                                                    "iteration",
+                                                    "CpuLoad",
+                                                    chartCpuLoadStat,
+                                                    "Output/Charts/cpuLoad");
+                                        } catch (Exception e) {
+                                            System.err.println("COULD NOT CREATE GRAPHS");
+                                            e.printStackTrace();
+                                        }
+                                    } else {
+                                        // delete all the files that were used to generate the configuration.yaml file.
+                                        try {
+                                            Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/JSONs")));
+                                            Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/Charts")));
 
-                            else
-                            {
-                                //delete all the files that were used to generate the configuration.yaml file.
-                                try
-                                {
-                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/resValues.txt")));
-                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/heapUsedValues.txt")));
-                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/nativeUsedValues" +
-                                            ".txt")));
-                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/cpuLoad.txt")));
-                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/JSONs")));
-                                    Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/Charts")));
-                                }
-
-                                catch (IOException e)
-                                {
-                                    System.err.println("COULD NOT REMOVE FILES!");
-                                    e.printStackTrace();
-                                }
-
-                            }
-                        }));
+                                            File dumpDir = new File("Output/Dump/");
+                                            for (File file : dumpDir.listFiles())
+                                            {
+                                                file.delete();
+                                            }
+                                            Files.deleteIfExists(Paths.get(Util.separatorsToSystem("Output/Dump")));
+                                        } catch (IOException | NullPointerException e) {
+                                            System.err.println("COULD NOT REMOVE FILES!");
+                                            e.printStackTrace();
+                                        }
+                                    }
+                                }));
     }
 
-    private static void exportGraphs(String title, String xAxisTitle, String yAxisTitle,
-                                     DescriptiveStatistics stats, String fileName)
+    private static void exportGraphs(
+            String title,
+            String xAxisTitle,
+            String yAxisTitle,
+            DescriptiveStatistics stats,
+            String fileName)
     {
 
         double[] time = new double[stats.getValues().length];
 
         time[0] = 0;
 
-        for (int i = 1; i < time.length; i++)
-        {
+        for (int i = 1; i < time.length; i++) {
             time[i] = Constants.TIME_TO_SLEEP + time[i - 1];
         }
 
-        try
-        {
+        try {
             final XYChart chart =
                     new XYChartBuilder()
                             .width(1000)
@@ -265,41 +256,29 @@ public class ContainerAgent extends Thread
             chart.addSeries("y(x)", time, stats.getValues());
 
             BitmapEncoder.saveBitmapWithDPI(
-                    chart,
-                    Util.separatorsToSystem(fileName),
-                    BitmapEncoder.BitmapFormat.PNG,
-                    600);
-        }
-
-        catch (Exception e)
-        {
+                    chart, Util.separatorsToSystem(fileName), BitmapEncoder.BitmapFormat.PNG, 600);
+        } catch (Exception e) {
             System.err.println("IO ERROR: COULD NOT WRITE CHARTS TO FILE.");
         }
-
     }
 
     public void run()
     {
-        try
-        {
+        try {
             getMetrics(this);
-        }
-        catch (Exception e)
-        {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     private boolean createDirs()
     {
-        try
-        {
+        try {
             Files.createDirectories(Paths.get("Output"));
             Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/Charts")));
             Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/JSONs")));
-        }
-        catch (IOException e)
-        {
+            Files.createDirectories(Paths.get(Util.separatorsToSystem("Output/Dump")));
+        } catch (IOException e) {
             System.err.println("IO EXCEPTION: COULD NOT CREATE REQUIRED DIRECTORIES");
             return false;
         }

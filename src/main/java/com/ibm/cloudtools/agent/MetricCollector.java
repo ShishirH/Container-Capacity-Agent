@@ -1,25 +1,15 @@
 /*
- * ******************************************************************************
- *  * Copyright (c) 2012, 2019 IBM Corp. and others
- *  *
- *  * This program and the accompanying materials are made available under
- *  * the terms of the Eclipse Public License 2.0 which accompanies this
- *  * distribution and is available at https://www.eclipse.org/legal/epl-2.0/
- *  * or the Apache License, Version 2.0 which accompanies this distribution and
- *  * is available at https://www.apache.org/licenses/LICENSE-2.0.
- *  *
- *  * This Source Code may also be made available under the following
- *  * Secondary Licenses when the conditions for such availability set
- *  * forth in the Eclipse Public License, v. 2.0 are satisfied: GNU
- *  * General Public License, version 2 with the GNU Classpath
- *  * Exception [1] and GNU General Public License, version 2 with the
- *  * OpenJDK Assembly Exception [2].
- *  *
- *  * [1] https://www.gnu.org/software/classpath/license.html
- *  * [2] http://openjdk.java.net/legal/assembly-exception.html
- *  *
- *  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *  ******************************************************************************
+ * # Licensed under the Apache License, Version 2.0 (the "License");
+ * # you may not use this file except in compliance with the License.
+ * # You may obtain a copy of the License at
+ * #
+ * #      https://www.apache.org/licenses/LICENSE-2.0
+ * #
+ * # Unless required by applicable law or agreed to in writing, software
+ * # distributed under the License is distributed on an "AS IS" BASIS,
+ * # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * # See the License for the specific language governing permissions and
+ * # limitations under the License.
  */
 
 /*
@@ -32,36 +22,30 @@
 */
 package com.ibm.cloudtools.agent;
 
-import com.ibm.cloudtools.cpu.AbstractCpuMetricsImpl;
-import com.ibm.cloudtools.memory.MemoryMetricsImpl;
+import com.ibm.cloudtools.metrics.cpu.AbstractCpuMetricsImpl;
+import com.ibm.cloudtools.metrics.memory.MemoryMetricsImpl;
 import com.ibm.java.lang.management.internal.MemoryMXBeanImpl;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 import java.lang.management.MemoryPoolMXBean;
 import java.util.List;
 
+/*
+ * Class where all metrics are stored, so that they can be accessed later.
+ */
 public class MetricCollector
 {
-
-    public static int nurseryAllocatedIndex = -1;
-    public static int nurserySurvivorIndex = -1;
-    public static int tenuredSOAIndex = -1;
-    public static int tenuredLOAIndex = -1;
-
-    public static double nurseryAllocatedMax = -1;
-    public static double nurserySurvivorMax = -1;
-    public static double tenuredSOAMax = -1;
-    public static double tenuredLOAMax = -1;
 
     public static int governorPowersaveFlag = 0;
 
     public AbstractCpuMetricsImpl cpuMetricsImpl = AbstractCpuMetricsImpl.getCpuMetrics();
     MemoryMetricsImpl memoryMetrics;
 
-    private int memTypesLength = Constants.MEM_TYPES.length;
+    private int memTypesLength = Constants.MEM_TYPES.values().length;
     public DescriptiveStatistics residentMemoryStat = new DescriptiveStatistics();
     public DescriptiveStatistics[] heapStat = new DescriptiveStatistics[memTypesLength];
     public DescriptiveStatistics[] nativeStat = new DescriptiveStatistics[memTypesLength];
+    public DescriptiveStatistics cpuLoadValues = new DescriptiveStatistics();
 
     private MemoryMXBeanImpl memoryMXBean = MemoryMXBeanImpl.getInstance();
     private List<MemoryPoolMXBean> memoryPoolMXBeans = memoryMXBean.getMemoryPoolMXBeans(false);
@@ -71,22 +55,20 @@ public class MetricCollector
 
     MetricCollector()
     {
-        for (int i = 0; i < Constants.MEM_TYPES.length; i++)
-        {
+        for (int i = 0; i < Constants.MEM_TYPES.values().length; i++) {
             heapStat[i] = new DescriptiveStatistics();
             nativeStat[i] = new DescriptiveStatistics();
         }
 
-        for (int i = 0; i < memDivisionNames.length; i++)
-        {
+        for (int i = 0; i < memDivisionNames.length; i++) {
             memDivisionNames[i] = memoryPoolMXBeans.get(i).getName();
-            if (memDivisionNames[i].equals("nursery-allocate")) nurseryAllocatedIndex = i;
+            if (memDivisionNames[i].equals("nursery-allocate")) MemoryMetricsImpl.nurseryAllocatedIndex = i;
 
-            if (memDivisionNames[i].equals("nursery-survivor")) nurserySurvivorIndex = i;
+            if (memDivisionNames[i].equals("nursery-survivor")) MemoryMetricsImpl.nurserySurvivorIndex = i;
 
-            if (memDivisionNames[i].equals("tenured-SOA")) tenuredSOAIndex = i;
+            if (memDivisionNames[i].equals("tenured-SOA")) MemoryMetricsImpl.tenuredSOAIndex = i;
 
-            if (memDivisionNames[i].equals("tenured-LOA")) tenuredLOAIndex = i;
+            if (memDivisionNames[i].equals("tenured-LOA")) MemoryMetricsImpl.tenuredLOAIndex = i;
         }
 
         memoryMetrics = new MemoryMetricsImpl();

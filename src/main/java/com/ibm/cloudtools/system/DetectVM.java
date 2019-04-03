@@ -1,25 +1,15 @@
 /*
- * ******************************************************************************
- *  * Copyright (c) 2012, 2019 IBM Corp. and others
- *  *
- *  * This program and the accompanying materials are made available under
- *  * the terms of the Eclipse Public License 2.0 which accompanies this
- *  * distribution and is available at https://www.eclipse.org/legal/epl-2.0/
- *  * or the Apache License, Version 2.0 which accompanies this distribution and
- *  * is available at https://www.apache.org/licenses/LICENSE-2.0.
- *  *
- *  * This Source Code may also be made available under the following
- *  * Secondary Licenses when the conditions for such availability set
- *  * forth in the Eclipse Public License, v. 2.0 are satisfied: GNU
- *  * General Public License, version 2 with the GNU Classpath
- *  * Exception [1] and GNU General Public License, version 2 with the
- *  * OpenJDK Assembly Exception [2].
- *  *
- *  * [1] https://www.gnu.org/software/classpath/license.html
- *  * [2] http://openjdk.java.net/legal/assembly-exception.html
- *  *
- *  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *  ******************************************************************************
+ * # Licensed under the Apache License, Version 2.0 (the "License");
+ * # you may not use this file except in compliance with the License.
+ * # You may obtain a copy of the License at
+ * #
+ * #      https://www.apache.org/licenses/LICENSE-2.0
+ * #
+ * # Unless required by applicable law or agreed to in writing, software
+ * # distributed under the License is distributed on an "AS IS" BASIS,
+ * # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * # See the License for the specific language governing permissions and
+ * # limitations under the License.
  */
 
 package com.ibm.cloudtools.system;
@@ -31,9 +21,7 @@ import oshi.hardware.NetworkIF;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Uses OSHI to attempt to identify whether the user is on a Virtual Machine
- */
+/** Uses OSHI to attempt to identify whether the user is on a Virtual Machine */
 public class DetectVM
 {
     /*
@@ -42,7 +30,7 @@ public class DetectVM
     */
     private static final Map<String, String> vmMacAddressOUI = new HashMap<>();
     private static final String[] vmModelArray =
-            new String[]{
+            new String[] {
                     "KVM",
                     "lguest",
                     "OpenVZ",
@@ -58,8 +46,7 @@ public class DetectVM
                     "LXC"
             };
 
-    static
-    {
+    static {
         vmMacAddressOUI.put("00:50:56", "VMware ESX 3");
         vmMacAddressOUI.put("00:0C:29", "VMware ESX 3");
         vmMacAddressOUI.put("00:05:69", "VMware ESX 3");
@@ -84,13 +71,10 @@ public class DetectVM
         /* Try well known MAC addresses */
         NetworkIF[] nifs = hardwareAbstractionLayer.getNetworkIFs();
 
-        for (NetworkIF nif : nifs)
-        {
+        for (NetworkIF nif : nifs) {
             String mac = nif.getMacaddr().substring(0, 8).toUpperCase();
-            if (vmMacAddressOUI.containsKey(mac))
-            {
-                if (nif.getName().contains("virbr"))
-                {
+            if (vmMacAddressOUI.containsKey(mac)) {
+                if (nif.getName().contains("virbr")) {
                     continue;
                 }
                 System.err.println(vmMacAddressOUI.get(mac));
@@ -100,17 +84,14 @@ public class DetectVM
 
         /* Try well known models */
         String model = hardwareAbstractionLayer.getComputerSystem().getModel();
-        for (String vm : vmModelArray)
-        {
-            if (model.contains(vm))
-            {
+        for (String vm : vmModelArray) {
+            if (model.contains(vm)) {
                 System.err.println("RUNNING ON VM: " + vm);
                 return true;
             }
         }
         String manufacturer = hardwareAbstractionLayer.getComputerSystem().getManufacturer();
-        if ("Microsoft Corporation".equals(manufacturer) && "Virtual Machine".equals(model))
-        {
+        if ("Microsoft Corporation".equals(manufacturer) && "Virtual Machine".equals(model)) {
             System.err.println("RUNNING ON VM: Microsoft Hyper-V");
         }
 
